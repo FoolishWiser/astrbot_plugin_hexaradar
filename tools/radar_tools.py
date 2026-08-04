@@ -21,7 +21,7 @@ def _text(result: object) -> str:
 class RadarGetTool(FunctionTool):
     """查询人员六边形数据（只读）。"""
 
-    store: RadarStore
+    store: RadarStore | None = None
 
     name: str = "get_radar_scores"
     description: str = (
@@ -58,7 +58,7 @@ class RadarGetTool(FunctionTool):
 class RadarSetTool(FunctionTool):
     """写入/新建人员六边形数据（upsert）。"""
 
-    store: RadarStore
+    store: RadarStore | None = None
 
     name: str = "set_radar_scores"
     description: str = (
