@@ -79,6 +79,11 @@ class Main(Star):
             return denied
         q = request.query.get("q", "")
         persons = await self.store.list_persons(query=q)
+        file = self.store._file
+        logger.info(
+            f"astrbot_plugin_hexaradar: WebUI list 请求 q={q!r}，返回 {len(persons)} 人，"
+            f"数据文件={file}（存在={file.exists()}）"
+        )
         return json_response({"persons": persons, "count": len(persons)})
 
     async def api_upsert(self):

@@ -64,6 +64,16 @@ function toast(msg, isError = false) {
   toast._t = setTimeout(() => { el.hidden = true; }, 2600);
 }
 
+function showError(msg) {
+  const el = $("err-banner");
+  el.textContent = "页面错误：" + msg;
+  el.hidden = false;
+}
+
+function clearError() {
+  $("err-banner").hidden = true;
+}
+
 function radarSVG(scores, size) {
   const cx = size / 2;
   const cy = size / 2;
@@ -109,29 +119,34 @@ function sortPersons() {
 }
 
 function render() {
-  const persons = sortPersons();
-  const empty = $("empty");
-  empty.hidden = persons.length > 0;
-  $("empty-text").textContent = state.query
-    ? `未找到与「${esc(state.query)}」匹配的人员`
-    : "暂无人员数据，点击「+ 新建人员」开始";
+  try {
+    const persons = sortPersons();
+    const empty = $("empty");
+    empty.hidden = persons.length > 0;
+    $("empty-text").textContent = state.query
+      ? `未找到与「${esc(state.query)}」匹配的人员`
+      : "暂无人员数据，点击「+ 新建人员」开始";
 
-  const cards = $("cards");
-  const tableWrap = $("table-wrap");
-  const isCards = state.view === "cards";
-  cards.hidden = !isCards;
-  tableWrap.hidden = isCards;
+    const cards = $("cards");
+    const tableWrap = $("table-wrap");
+    const isCards = state.view === "cards";
+    cards.hidden = !isCards;
+    tableWrap.hidden = isCards;
 
-  if (isCards) {
-    cards.innerHTML = persons.map(cardHTML).join("");
-  } else {
-    $("table-body").innerHTML = persons.map(tableRowHTML).join("");
-    document.querySelectorAll("th[data-sort]").forEach((th) => {
-      th.classList.toggle("sorted", th.dataset.sort === state.sortKey);
-    });
+    if (isCards) {
+      cards.innerHTML = persons.map(cardHTML).join("");
+    } else {
+      $("table-body").innerHTML = persons.map(tableRowHTML).join("");
+      document.querySelectorAll("th[data-sort]").forEach((th) => {
+        th.classList.toggle("sorted", th.dataset.sort === state.sortKey);
+      });
+    }
+
+    $("sort-dir").textContent = state.sortDir === "desc" ? "↓" : "↑";
+  } catch (e) {
+    console.error("hexaradar: 渲染失败", e);
+    showError(e.message);
   }
-
-  $("sort-dir").textContent = state.sortDir === "desc" ? "↓" : "↑";
 }
 
 function cardHTML(p) {
@@ -175,13 +190,23 @@ function tableRowHTML(p) {
 }
 
 async function loadList() {
+  clearError();
   try {
     const data = await bridge.apiGet("list", authParams({ q: state.query }));
+    console.log("hexaradar: list 返回", data);
+    if (!data || !Array.isArray(data.persons)) {
+      throw new Error("接口返回格式异常: " + JSON.stringify(data));
+    }
     state.persons = data.persons || [];
     $("btn-lock").hidden = !pwd();
     render();
   } catch (e) {
-    showPasswordModal(true, !!pwd());
+    console.error("hexaradar: list 请求失败", e);
+    if (String(e.message || "").includes("密码") || e.message === "Unauthorized") {
+      showPasswordModal(true, !!pwd());
+    } else {
+      showError(e.message + "\n（若持续出现，请查看 AstrBot 日志中 astrbot_plugin_hexaradar 的 list 记录）");
+    }
   }
 }
 
@@ -396,9 +421,14 @@ async function deletePerson(name) {
 }
 
 async function init() {
-  await bridge.ready();
-  bindEvents();
-  await loadList();
+  try {
+    await bridge.ready();
+    bindEvents();
+    await loadList();
+  } catch (e) {
+    console.error("hexaradar: 初始化失败", e);
+    showError(e.message + "（bridge 未就绪或插件未正确加载）");
+  }
 }
 
 init();

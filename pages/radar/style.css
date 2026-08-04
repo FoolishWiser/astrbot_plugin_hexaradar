@@ -34,6 +34,18 @@
   display: none !important;
 }
 
+.err-banner {
+  background: rgba(214, 69, 69, 0.12);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 body {
   margin: 0;
   background: var(--bg);
