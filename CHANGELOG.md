@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.1.1] - 2026-08-04
+
+### 修复
+
+- 修复 AI 工具类 dataclass 定义报错「non-default argument 'store' follows default argument」（`store` 字段增加默认值）
+
 ## [v0.1.0] - 2026-08-04
 
 ### 新增
@@ -18,7 +24,3 @@
 - 六维能力（学习能力、心理承受力、社交能力、判断决策、自我认知、长期方向感），综合分按权重公式统一计算
 - 数据持久化至 `data/plugin_data/astrbot_plugin_hexaradar/scores.json`
 - 亮/暗主题跟随 WebUI
-
-### 修复
-
-- 修复 AI 工具类 dataclass 定义报错「non-default argument 'store' follows default argument」（`store` 字段增加默认值）
