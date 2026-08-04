@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>六边形能力雷达</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-logo">⬡</span>
+        <h1>六边形能力雷达</h1>
+      </div>
+      <div class="toolbar">
+        <input id="search" class="search" type="search" placeholder="搜索：姓名 / 拼音 / 同音，如 xm、晓铭" autocomplete="off" />
+        <select id="sort-select" class="sort-select" title="排序方式">
+          <option value="composite">按综合分</option>
+          <option value="name">按名称（拼音）</option>
+          <option value="learning">按学习能力</option>
+          <option value="psychology">按心理承受力</option>
+          <option value="social">按社交能力</option>
+          <option value="judgment">按判断决策</option>
+          <option value="self_awareness">按自我认知</option>
+          <option value="direction">按长期方向感</option>
+        </select>
+        <button id="sort-dir" class="btn ghost" title="切换升降序">↓</button>
+        <div class="seg" role="tablist">
+          <button id="view-cards" class="seg-btn active" title="卡片视图">▦</button>
+          <button id="view-table" class="seg-btn" title="列表视图">☰</button>
+        </div>
+        <button id="btn-add" class="btn primary">+ 新建人员</button>
+        <button id="btn-lock" class="btn ghost" title="清除密码并锁定页面" hidden>🔒</button>
+      </div>
+    </header>
+
+    <main id="content" class="content">
+      <div id="empty" class="empty" hidden>
+        <div class="empty-icon">⬡</div>
+        <p id="empty-text">暂无人员数据，点击「+ 新建人员」开始</p>
+      </div>
+      <div id="cards" class="cards" hidden></div>
+      <div id="table-wrap" class="table-wrap" hidden>
+        <table class="table">
+          <thead>
+            <tr>
+              <th data-sort="name">姓名</th>
+              <th data-sort="composite">综合</th>
+              <th data-sort="learning">学习</th>
+              <th data-sort="psychology">心理</th>
+              <th data-sort="social">社交</th>
+              <th data-sort="judgment">判断</th>
+              <th data-sort="self_awareness">认知</th>
+              <th data-sort="direction">方向</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+    </main>
+
+    <div id="password-modal" class="modal-mask" hidden>
+      <div class="modal">
+        <h2>🔒 需要访问密码</h2>
+        <p class="hint">此页面受密码保护，请输入管理员配置的访问密码。</p>
+        <input id="password-input" type="password" placeholder="访问密码" autocomplete="current-password" />
+        <p id="password-error" class="error" hidden>密码错误，请重试</p>
+        <div class="modal-actions">
+          <button id="password-cancel" class="btn ghost">取消</button>
+          <button id="password-ok" class="btn primary">解锁</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="edit-modal" class="modal-mask" hidden>
+      <div class="modal wide">
+        <h2 id="edit-title">编辑人员</h2>
+        <div class="edit-layout">
+          <div class="edit-left">
+            <div id="edit-radar" class="edit-radar"></div>
+            <div class="composite-box">综合 <span id="edit-composite" class="composite-value">0</span> 分</div>
+          </div>
+          <div class="edit-right">
+            <label class="field">
+              <span>姓名</span>
+              <input id="edit-name" type="text" placeholder="人员姓名" />
+            </label>
+            <div id="edit-sliders" class="sliders"></div>
+            <label class="field">
+              <span>备注</span>
+              <input id="edit-desc" type="text" placeholder="备注 / 评价说明（可选）" />
+            </label>
+            <div class="modal-actions">
+              <button id="edit-delete" class="btn danger">删除</button>
+              <div class="spacer"></div>
+              <button id="edit-cancel" class="btn ghost">取消</button>
+              <button id="edit-save" class="btn primary">保存</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" hidden></div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

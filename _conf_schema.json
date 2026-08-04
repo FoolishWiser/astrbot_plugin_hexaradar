@@ -1,0 +1,12 @@
+{
+  "password_enabled": {
+    "description": "启用 WebUI 密码保护（仅保护 WebUI 页面数据，不影响 AI 工具）",
+    "type": "bool",
+    "default": false
+  },
+  "password": {
+    "description": "WebUI 访问密码（启用密码保护后生效）",
+    "type": "string",
+    "default": ""
+  }
+}
