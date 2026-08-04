@@ -26,7 +26,8 @@ description: 六边形能力雷达（astrbot_plugin_hexaradar）使用口径。�
 
 - `get_radar_scores(name?)`：查询数据。不传 name 返回全部人员（含综合分）；传 name 查询单个。
 - `set_radar_scores(name, learning, psychology, social, judgment, self_awareness, direction, desc?)`：
-  新建或更新人员评分。name 不存在则创建，存在则更新全部六项。评分必须为 0-100 的数值。
+  新建或更新人员评分。name 不存在则创建，存在则更新。六项评分均可选：
+  只传需要修改的项即可，未传的项在更新时保留原值，新建时默认为 60。评分必须为 0-100 的数值。
 
 ## 使用准则
 

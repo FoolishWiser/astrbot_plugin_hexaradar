@@ -7,10 +7,10 @@ import json
 from dataclasses import dataclass, field
 from typing import Dict, Optional
 
-from astrbot.api import FunctionTool
+from astrbot.api import FunctionTool, logger
 from astrbot.api.event import AstrMessageEvent
 
-from ..store import DIMENSIONS, SCORE_MAX, SCORE_MIN, RadarStore
+from ..store import DIMENSIONS, DEFAULT_SCORE, SCORE_MAX, SCORE_MIN, RadarStore
 
 
 def _text(result: object) -> str:
@@ -63,6 +63,7 @@ class RadarSetTool(FunctionTool):
     name: str = "set_radar_scores"
     description: str = (
         "写入（新建或更新）六边形能力雷达中的人员评分。name 已存在则更新，不存在则创建。"
+        "各评分为 0-100 的数值，可只传入部分项，缺省项保留原值或默认 60。"
         "综合分由系统按公式自动计算，无需传入。"
     )
     parameters: dict = field(
@@ -76,7 +77,7 @@ class RadarSetTool(FunctionTool):
                 **{
                     dim["key"]: {
                         "type": "number",
-                        "description": f"{dim['label']}评分，范围 {SCORE_MIN}-{SCORE_MAX}",
+                        "description": f"{dim['label']}评分，范围 {SCORE_MIN}-{SCORE_MAX}，可选",
                     }
                     for dim in DIMENSIONS
                 },
@@ -85,7 +86,7 @@ class RadarSetTool(FunctionTool):
                     "description": "备注/评价说明（可选）",
                 },
             },
-            "required": ["name"] + [dim["key"] for dim in DIMENSIONS],
+            "required": ["name"],
         }
     )
 
@@ -112,12 +113,18 @@ class RadarSetTool(FunctionTool):
             }
             for key, val in scores.items():
                 if val is None:
-                    raise ValueError(f"缺少必填参数: {key}")
+                    continue
                 if not (SCORE_MIN <= val <= SCORE_MAX):
                     raise ValueError(
                         f"{key} 评分 {val} 超出范围 {SCORE_MIN}-{SCORE_MAX}"
                     )
+            existing = await self.store.get_person(name)
+            if existing:
+                for key, val in scores.items():
+                    if val is None:
+                        scores[key] = existing["scores"].get(key, DEFAULT_SCORE)
             person = await self.store.upsert_person(name, scores, desc=desc or "")
+            logger.info(f"astrbot_plugin_hexaradar: 已写入人员 {name} 的评分数据")
             return _text({"ok": True, "person": person})
         except Exception as e:  # noqa: BLE001
             return _text({"ok": False, "error": str(e)})
