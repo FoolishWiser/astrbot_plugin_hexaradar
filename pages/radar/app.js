@@ -1,7 +1,5 @@
 const bridge = window.AstrBotPluginPage;
 
-const PWD_KEY = "hexaradar_pwd";
-
 const DIMS = [
   { key: "learning", label: "学习能力" },
   { key: "psychology", label: "心理承受力" },
@@ -35,18 +33,18 @@ function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+let pwdValue = "";
+
 function pwd() {
-  return sessionStorage.getItem(PWD_KEY) || "";
+  return pwdValue;
 }
 
 function authParams(params = {}) {
-  const p = pwd();
-  return p ? { ...params, pwd: p } : params;
+  return pwdValue ? { ...params, pwd: pwdValue } : params;
 }
 
 function authBody(body = {}) {
-  const p = pwd();
-  return p ? { ...body, pwd: p } : body;
+  return pwdValue ? { ...body, pwd: pwdValue } : body;
 }
 
 function badgeClass(v) {
@@ -220,13 +218,13 @@ function showPasswordModal(show, withError = false) {
 async function unlock() {
   const value = $("password-input").value;
   if (!value) return;
-  sessionStorage.setItem(PWD_KEY, value);
+  pwdValue = value;
   try {
     await bridge.apiGet("list", authParams({ q: state.query }));
     showPasswordModal(false);
     await loadList();
   } catch (e) {
-    sessionStorage.removeItem(PWD_KEY);
+    pwdValue = "";
     showPasswordModal(true, true);
   }
 }
@@ -365,7 +363,7 @@ function bindEvents() {
 
   $("btn-add").addEventListener("click", () => openEdit(null));
   $("btn-lock").addEventListener("click", () => {
-    sessionStorage.removeItem(PWD_KEY);
+    pwdValue = "";
     $("btn-lock").hidden = true;
     state.persons = [];
     render();
