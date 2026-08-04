@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v0.1.2] - 2026-08-04
+
+### 修复
+
+- 修复 WebUI 弹窗/视图隐藏失效问题：CSS 中 `.modal-mask`、`.cards` 等 `display` 样式覆盖了 HTML `hidden` 属性，导致编辑弹窗常驻无法关闭（新增全局 `[hidden] { display: none !important; }` 规则）
+
 ## [v0.1.1] - 2026-08-04
 
 ### 修复
