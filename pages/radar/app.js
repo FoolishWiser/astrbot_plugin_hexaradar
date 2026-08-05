@@ -265,14 +265,12 @@ function tableRowHTML(p) {
           <button class="name-link" data-act="detail" data-name="${esc(p.name)}">${esc(p.name)}</button>
           ${compBadge}
           ${dimBadge}
+          <div class="cell-actions">
+            <button class="icon-btn" data-act="edit" data-name="${esc(p.name)}" title="编辑">✎</button>
+            <button class="icon-btn danger" data-act="del" data-name="${esc(p.name)}" title="删除">🗑</button>
+          </div>
         </div>
-        ${p.desc ? `<small class="row-desc">${esc(p.desc)}</small>` : ""}
-      </td>
-      <td>
-        <div class="cell-actions">
-          <button class="btn ghost" data-act="edit" data-name="${esc(p.name)}">编辑</button>
-          <button class="btn ghost" data-act="del" data-name="${esc(p.name)}">删除</button>
-        </div>
+        ${p.desc ? `<div class="row-desc">${esc(p.desc)}</div>` : ""}
       </td>
     </tr>`;
 }
