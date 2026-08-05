@@ -522,13 +522,14 @@ body {
   transform: translateY(-50%);
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 4px;
   z-index: 20;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 6px 4px;
+  padding: 6px 3px;
   box-shadow: var(--shadow);
+  width: 30px;
 }
 
 .py-letters {
@@ -544,10 +545,12 @@ body {
   font-size: 11px;
   font-weight: 650;
   line-height: 1.7;
-  padding: 0 6px;
+  padding: 0;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.12s;
+  width: 100%;
+  text-align: center;
 }
 
 .py-item:hover:not(:disabled) {
@@ -571,11 +574,13 @@ body {
 }
 
 .py-reset {
-  margin-top: 6px;
-  padding: 4px 8px;
+  margin-top: 4px;
+  padding: 2px 0;
   font-size: 12px;
   border-radius: 8px;
   width: 100%;
+  line-height: 1.5;
+  text-align: center;
 }
 
 .chip.bar-chip {
