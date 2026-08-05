@@ -173,9 +173,35 @@ class RadarStore:
             result[key] = max(SCORE_MIN, min(SCORE_MAX, val))
         return result
 
+    def _rollover_ages(self) -> bool:
+        """已填年龄的人员跨年后自动加龄：按记录年份与当前年份之差递增。返回是否有变更。"""
+        year = time.localtime().tm_year
+        changed = False
+        for person in self._persons.values():
+            age = person.get("age")
+            if age is None:
+                continue
+            age_year = person.get("age_year")
+            if age_year is None:
+                person["age_year"] = year
+                changed = True
+                continue
+            try:
+                age_year = int(age_year)
+            except (TypeError, ValueError):
+                person["age_year"] = year
+                changed = True
+                continue
+            if age_year < year:
+                person["age"] = age + (year - age_year)
+                person["age_year"] = year
+                changed = True
+        return changed
+
     def _to_public(self, person: Dict[str, Any]) -> Dict[str, Any]:
         """附加综合分等展示字段，返回副本。"""
         out = dict(person)
+        out.pop("age_year", None)
         out["scores"] = dict(person.get("scores", {}))
         out["reasons"] = dict(person.get("reasons") or {})
         out["composite"] = compute_composite(out["scores"])
@@ -200,6 +226,8 @@ class RadarStore:
     async def list_persons(self, query: Optional[str] = None) -> List[Dict[str, Any]]:
         async with self._lock:
             self._sync_from_disk()
+            if self._rollover_ages():
+                await self._save()
             persons = [self._to_public(p) for p in self._persons.values()]
         if query:
             query = query.strip().lower()
@@ -211,6 +239,8 @@ class RadarStore:
     async def get_person(self, name: str) -> Optional[Dict[str, Any]]:
         async with self._lock:
             self._sync_from_disk()
+            if self._rollover_ages():
+                await self._save()
             person = self._persons.get(name)
             return self._to_public(person) if person else None
 
@@ -227,6 +257,8 @@ class RadarStore:
             sort_by = "composite"
         async with self._lock:
             self._sync_from_disk()
+            if self._rollover_ages():
+                await self._save()
             persons = [self._to_public(p) for p in self._persons.values()]
         if sort_by == "social_composite":
             persons.sort(
@@ -271,14 +303,17 @@ class RadarStore:
             merged_reasons = dict(old.get("reasons") or {})
             merged_reasons.update(reasons_norm)
             new_age = old.get("age")
+            new_age_year = old.get("age_year")
             if age is not None or not keep_age:
                 new_age = age
+                new_age_year = time.localtime().tm_year if age is not None else None
             person = {
                 "name": name,
                 "desc": desc.strip() or old.get("desc", ""),
                 "scores": scores_norm,
                 "reasons": merged_reasons,
                 "age": new_age,
+                "age_year": new_age_year,
                 "updated_at": int(time.time()),
             }
             self._persons[name] = person
