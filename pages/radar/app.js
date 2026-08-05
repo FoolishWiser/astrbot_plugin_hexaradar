@@ -168,7 +168,8 @@ function renderMain() {
   cards.hidden = !isCards;
   tableWrap.hidden = isCards;
   $("py-stack").hidden = isCards || (persons.length === 0 && !state.pyFilter);
-  $("py-reset").hidden = !state.pyFilter;
+  $("py-stack").classList.toggle("filtered", !!state.pyFilter);
+  $("py-reset").classList.toggle("show", !!state.pyFilter);
 
   if (isCards) {
     cards.innerHTML = persons.map(cardHTML).join("");
@@ -200,7 +201,7 @@ function renderPyIndex() {
       render();
     });
   });
-  $("py-reset").hidden = !state.pyFilter;
+  $("py-reset").classList.toggle("show", !!state.pyFilter);
 }
 
 function render() {

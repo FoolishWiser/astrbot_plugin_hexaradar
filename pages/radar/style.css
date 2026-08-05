@@ -456,12 +456,12 @@ body {
 }
 
 .icon-btn {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--card);
-  color: var(--muted);
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -473,13 +473,21 @@ body {
 }
 
 .icon-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(91, 91, 214, 0.4);
+}
+
+.icon-btn.danger {
+  border-color: var(--danger);
+  background: rgba(214, 69, 69, 0.1);
+  color: var(--danger);
 }
 
 .icon-btn.danger:hover {
-  border-color: var(--danger);
-  color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(214, 69, 69, 0.4);
 }
 
 .table thead tr {
@@ -603,18 +611,33 @@ body {
   flex-direction: column;
   gap: 8px;
   z-index: 20;
+  opacity: 0.35;
+  transition: opacity 0.2s ease;
+}
+
+.py-stack:hover,
+.py-stack.filtered {
+  opacity: 1;
 }
 
 .py-index {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: 12px;
   padding: 6px 3px;
-  box-shadow: var(--shadow);
+  box-shadow: none;
   width: 30px;
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+
+.py-stack:hover .py-index,
+.py-stack.filtered .py-index {
+  background: var(--card);
+  border-color: var(--border);
+  box-shadow: var(--shadow);
 }
 
 .py-letters {
@@ -626,7 +649,7 @@ body {
 .py-item {
   border: none;
   background: transparent;
-  color: var(--accent);
+  color: var(--muted);
   font-size: 11px;
   font-weight: 650;
   line-height: 1.7;
@@ -636,6 +659,13 @@ body {
   transition: all 0.12s;
   width: 100%;
   text-align: center;
+  opacity: 0.6;
+}
+
+.py-stack:hover .py-item,
+.py-stack.filtered .py-item {
+  opacity: 1;
+  color: var(--accent);
 }
 
 .py-item:hover:not(:disabled) {
@@ -646,12 +676,17 @@ body {
 .py-item.active {
   background: var(--accent);
   color: #fff;
+  opacity: 1;
 }
 
 .py-item.off {
-  color: var(--muted);
-  opacity: 0.35;
+  opacity: 0.2;
   cursor: default;
+}
+
+.py-stack:hover .py-item.off,
+.py-stack.filtered .py-item.off {
+  opacity: 0.35;
 }
 
 .py-item:disabled {
@@ -664,14 +699,29 @@ body {
   border-radius: 12px;
   box-shadow: var(--shadow);
   width: 30px;
-  padding: 4px 0;
+  height: 30px;
+  padding: 0;
   font-size: 12px;
   line-height: 1.5;
   text-align: center;
   color: var(--muted);
   cursor: pointer;
-  transition: all 0.12s;
+  transition: opacity 0.2s ease, color 0.12s, border-color 0.12s;
   flex-shrink: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.py-reset.show {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.py-stack.filtered .py-reset {
+  background: var(--card);
+  border-color: var(--border);
 }
 
 .py-reset:hover {
