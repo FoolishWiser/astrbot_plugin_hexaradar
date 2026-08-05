@@ -267,7 +267,7 @@ function tableRowHTML(p) {
           ${compBadge}
           ${dimBadge}
         </div>
-        ${p.desc ? `<small style="color:var(--muted)">${esc(p.desc)}</small>` : ""}
+        ${p.desc ? `<small class="row-desc">${esc(p.desc)}</small>` : ""}
       </td>
       ${cells}
       <td>

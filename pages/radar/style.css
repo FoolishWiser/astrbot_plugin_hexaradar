@@ -413,12 +413,15 @@ body {
   border-radius: var(--radius);
   overflow: auto;
   box-shadow: var(--shadow);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
 
 .table {
   width: 100%;
+  min-width: 0;
+  table-layout: fixed;
   border-collapse: collapse;
-  min-width: 820px;
 }
 
 .table th,
@@ -427,6 +430,25 @@ body {
   text-align: left;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.table td:nth-child(1) {
+  width: 28%;
+}
+
+.table td:nth-child(2),
+.table td:nth-child(3),
+.table td:nth-child(4),
+.table td:nth-child(5),
+.table td:nth-child(6),
+.table td:nth-child(7) {
+  width: 9%;
+}
+
+.table td:nth-child(8) {
+  width: 18%;
 }
 
 .table thead tr {
@@ -483,6 +505,47 @@ body {
 
 .name-link:hover {
   color: var(--accent);
+}
+
+.row-desc {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.table-wrap::-webkit-scrollbar,
+.modal::-webkit-scrollbar,
+.sliders::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.table-wrap::-webkit-scrollbar-track,
+.modal::-webkit-scrollbar-track,
+.sliders::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.table-wrap::-webkit-scrollbar-thumb,
+.modal::-webkit-scrollbar-thumb,
+.sliders::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 8px;
+}
+
+.table-wrap::-webkit-scrollbar-thumb:hover,
+.modal::-webkit-scrollbar-thumb:hover,
+.sliders::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+.modal,
+.sliders {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
 
 .chip {
