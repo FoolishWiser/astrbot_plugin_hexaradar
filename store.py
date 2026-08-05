@@ -129,6 +129,7 @@ class RadarStore:
         """附加综合分等展示字段，返回副本。"""
         out = dict(person)
         out["scores"] = dict(person.get("scores", {}))
+        out["reasons"] = dict(person.get("reasons") or {})
         out["composite"] = compute_composite(out["scores"])
         return out
 
@@ -151,22 +152,53 @@ class RadarStore:
             person = self._persons.get(name)
             return self._to_public(person) if person else None
 
+    async def search_persons(self, query: str) -> List[Dict[str, Any]]:
+        """按姓名/全拼/首字母/同音模糊搜索。"""
+        return await self.list_persons(query=query)
+
+    async def ranking(
+        self, sort_by: str = "composite", limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """按综合分或任一维度降序排行。"""
+        valid = [dim["key"] for dim in DIMENSIONS] + ["composite"]
+        if sort_by not in valid:
+            sort_by = "composite"
+        async with self._lock:
+            self._sync_from_disk()
+            persons = [self._to_public(p) for p in self._persons.values()]
+        key = lambda p: p[sort_by] if sort_by == "composite" else p["scores"].get(sort_by, 0)  # noqa: E731
+        persons.sort(key=key, reverse=True)
+        return persons[: max(1, min(limit, 100))]
+
     # ---------- 写入 ----------
 
     async def upsert_person(
-        self, name: str, scores: Dict[str, Any], desc: str = ""
+        self,
+        name: str,
+        scores: Dict[str, Any],
+        desc: str = "",
+        reasons: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """新建或更新人员。name 唯一，存在则覆盖。"""
         name = name.strip()
         if not name:
             raise ValueError("人员名称不能为空")
         scores_norm = self._normalize_scores(scores)
+        reasons_norm: Dict[str, str] = {}
+        if isinstance(reasons, dict):
+            for dim in DIMENSIONS:
+                raw = reasons.get(dim["key"], reasons.get(dim["label"], ""))
+                if isinstance(raw, str) and raw.strip():
+                    reasons_norm[dim["key"]] = raw.strip()
         async with self._lock:
             old = self._persons.get(name, {})
+            merged_reasons = dict(old.get("reasons") or {})
+            merged_reasons.update(reasons_norm)
             person = {
                 "name": name,
                 "desc": desc.strip() or old.get("desc", ""),
                 "scores": scores_norm,
+                "reasons": merged_reasons,
                 "updated_at": int(time.time()),
             }
             self._persons[name] = person

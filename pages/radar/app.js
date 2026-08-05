@@ -9,6 +9,8 @@ const DIMS = [
   { key: "direction", label: "长期方向感" },
 ];
 
+const SCORE_KEYS = new Set(DIMS.map((d) => d.key));
+
 const state = {
   persons: [],
   query: "",
@@ -31,6 +33,16 @@ function composite(scores) {
 
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function hueFor(name) {
+  let h = 0;
+  for (const ch of String(name)) h = (h * 31 + ch.codePointAt(0)) % 360;
+  return h;
+}
+
+function avatarStyle(name) {
+  return `background:linear-gradient(135deg,hsl(${hueFor(name)},72%,55%),hsl(${(hueFor(name) + 40) % 360},72%,45%));color:#fff;`;
 }
 
 let pwdValue = "";
@@ -93,7 +105,12 @@ function radarSVG(scores, size) {
     const v = Math.max((Number(scores?.[dim.key]) || 0) / 100, 0.005);
     return pt(i, r * v).join(",");
   }).join(" ");
-  s += `<polygon points="${pts}" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="2"/>`;
+  s += `<polygon points="${pts}" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>`;
+  DIMS.forEach((dim, i) => {
+    const v = Math.max((Number(scores?.[dim.key]) || 0) / 100, 0.005);
+    const [x, y] = pt(i, r * v);
+    s += `<circle cx="${x}" cy="${y}" r="3.5" fill="var(--accent)"/>`;
+  });
   for (let i = 0; i < DIMS.length; i++) {
     const [x, y] = pt(i, r + 22);
     s += `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="var(--muted)">${DIMS[i].label}</text>`;
@@ -108,6 +125,8 @@ function sortPersons() {
     let cmp;
     if (sortKey === "name") {
       cmp = collator.compare(a.name, b.name);
+    } else if (SCORE_KEYS.has(sortKey)) {
+      cmp = (Number(a.scores?.[sortKey]) || 0) - (Number(b.scores?.[sortKey]) || 0);
     } else {
       cmp = (Number(a[sortKey]) || 0) - (Number(b[sortKey]) || 0);
     }
@@ -116,31 +135,40 @@ function sortPersons() {
   return arr;
 }
 
+function renderMain() {
+  const persons = sortPersons();
+  const empty = $("empty");
+  empty.hidden = persons.length > 0;
+  $("empty-text").textContent = state.query
+    ? `未找到与「${esc(state.query)}」匹配的人员`
+    : "暂无人员数据，点击「+ 新建人员」开始";
+
+  const cards = $("cards");
+  const tableWrap = $("table-wrap");
+  $("detail").hidden = true;
+  const isCards = state.view === "cards";
+  cards.hidden = !isCards;
+  tableWrap.hidden = isCards;
+
+  if (isCards) {
+    cards.innerHTML = persons.map(cardHTML).join("");
+  } else {
+    $("table-body").innerHTML = persons.map(tableRowHTML).join("");
+    document.querySelectorAll("th[data-sort]").forEach((th) => {
+      th.classList.toggle("sorted", th.dataset.sort === state.sortKey);
+    });
+  }
+
+  $("sort-dir").textContent = state.sortDir === "desc" ? "↓" : "↑";
+}
+
 function render() {
   try {
-    const persons = sortPersons();
-    const empty = $("empty");
-    empty.hidden = persons.length > 0;
-    $("empty-text").textContent = state.query
-      ? `未找到与「${esc(state.query)}」匹配的人员`
-      : "暂无人员数据，点击「+ 新建人员」开始";
-
-    const cards = $("cards");
-    const tableWrap = $("table-wrap");
-    const isCards = state.view === "cards";
-    cards.hidden = !isCards;
-    tableWrap.hidden = isCards;
-
-    if (isCards) {
-      cards.innerHTML = persons.map(cardHTML).join("");
+    if (currentRoute()) {
+      renderDetail();
     } else {
-      $("table-body").innerHTML = persons.map(tableRowHTML).join("");
-      document.querySelectorAll("th[data-sort]").forEach((th) => {
-        th.classList.toggle("sorted", th.dataset.sort === state.sortKey);
-      });
+      renderMain();
     }
-
-    $("sort-dir").textContent = state.sortDir === "desc" ? "↓" : "↑";
   } catch (e) {
     console.error("hexaradar: 渲染失败", e);
     showError(e.message);
@@ -160,9 +188,9 @@ function cardHTML(p) {
   return `
     <div class="card" data-name="${esc(p.name)}">
       <div class="card-top">
-        <div class="avatar">${esc([...p.name][0] || "?")}</div>
+        <button class="avatar" style="${avatarStyle(p.name)}" data-act="detail" data-name="${esc(p.name)}" title="查看详情">${esc([...p.name][0] || "?")}</button>
         <div class="card-info">
-          <div class="card-name">${esc(p.name)}</div>
+          <div class="card-name" data-act="detail" data-name="${esc(p.name)}">${esc(p.name)}</div>
           ${p.desc ? `<div class="card-desc">${esc(p.desc)}</div>` : ""}
         </div>
         <span class="badge ${badgeClass(p.composite)}">${p.composite}</span>
@@ -172,11 +200,11 @@ function cardHTML(p) {
 }
 
 function tableRowHTML(p) {
-  const cells = DIMS.map((dim) => `<td class="score-cell">${Number(p.scores[dim.key] || 0)}</td>`).join("");
+  const cells = DIMS.map((dim) => `<td class="score-cell"><span class="chip ${badgeClass(Number(p.scores[dim.key] || 0))}">${Number(p.scores[dim.key] || 0)}</span></td>`).join("");
   return `
     <tr>
-      <td><strong>${esc(p.name)}</strong>${p.desc ? `<br/><small style="color:var(--muted)">${esc(p.desc)}</small>` : ""}</td>
-      <td class="score-cell"><span class="badge ${badgeClass(p.composite)}">${p.composite}</span></td>
+      <td><button class="name-link" data-act="detail" data-name="${esc(p.name)}">${esc(p.name)}</button>${p.desc ? `<br/><small style="color:var(--muted)">${esc(p.desc)}</small>` : ""}</td>
+      <td class="score-cell"><span class="chip ${badgeClass(p.composite)}">${p.composite}</span></td>
       ${cells}
       <td>
         <div class="cell-actions">
@@ -229,18 +257,75 @@ async function unlock() {
   }
 }
 
+function currentRoute() {
+  const m = location.hash.match(/^#\/person\/(.+)$/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+function openDetail(name) {
+  location.hash = "#/person/" + encodeURIComponent(name);
+}
+
+function goBack() {
+  location.hash = "";
+}
+
+function renderDetail() {
+  const name = currentRoute();
+  const p = state.persons.find((x) => x.name === name);
+  $("cards").hidden = true;
+  $("table-wrap").hidden = true;
+  $("empty").hidden = true;
+  $("detail").hidden = false;
+  if (!p) {
+    $("detail-avatar").textContent = "?";
+    $("detail-avatar").style.cssText = "";
+    $("detail-name").textContent = name;
+    $("detail-radar").innerHTML = "";
+    $("detail-composite").textContent = "0";
+    $("detail-scores").innerHTML = `<p class="detail-missing">未找到人员「${esc(name)}」，可能已被删除或搜索过滤。</p>`;
+    $("detail-desc-text").textContent = "—";
+    $("detail-edit").hidden = true;
+    $("detail-delete").hidden = true;
+    return;
+  }
+  $("detail-edit").hidden = false;
+  $("detail-delete").hidden = false;
+  $("detail-avatar").textContent = [...p.name][0] || "?";
+  $("detail-avatar").style.cssText = avatarStyle(p.name);
+  $("detail-name").textContent = p.name;
+  $("detail-radar").innerHTML = radarSVG(p.scores, 300);
+  $("detail-composite").textContent = p.composite;
+  const reasons = p.reasons || {};
+  $("detail-scores").innerHTML = DIMS.map((dim) => {
+    const v = Number(p.scores[dim.key] || 0);
+    const reason = reasons[dim.key];
+    return `
+      <div class="detail-score-row">
+        <div class="detail-score-head">
+          <span class="detail-dim">${dim.label}</span>
+          <span class="chip ${badgeClass(v)}">${v}</span>
+        </div>
+        <span class="bar-track"><span class="bar-fill" style="width:${v}%"></span></span>
+        <p class="detail-reason">${reason ? esc(reason) : "—"}</p>
+      </div>`;
+  }).join("");
+  $("detail-desc-text").textContent = p.desc || "—";
+}
+
 function openEdit(person) {
   if (person) {
     state.editing = {
       name: person.name,
       desc: person.desc || "",
       scores: { ...person.scores },
+      reasons: { ...(person.reasons || {}) },
       isNew: false,
     };
   } else {
     const scores = {};
     for (const dim of DIMS) scores[dim.key] = 60;
-    state.editing = { name: "", desc: "", scores, isNew: true };
+    state.editing = { name: "", desc: "", scores, reasons: {}, isNew: true };
   }
   $("edit-title").textContent = state.editing.isNew ? "新建人员" : `编辑：${state.editing.name}`;
   $("edit-name").value = state.editing.name;
@@ -260,11 +345,15 @@ function closeEdit() {
 function buildSliders() {
   $("edit-sliders").innerHTML = DIMS.map((dim) => {
     const v = Number(state.editing.scores[dim.key] || 0);
+    const reason = state.editing.reasons[dim.key] || "";
     return `
-      <div class="slider-row" data-key="${dim.key}">
-        <label>${dim.label}</label>
-        <input type="range" min="0" max="100" step="1" value="${v}" data-role="range"/>
-        <input type="number" min="0" max="100" step="1" value="${v}" data-role="num"/>
+      <div class="slider-block" data-key="${dim.key}">
+        <div class="slider-row">
+          <label>${dim.label}</label>
+          <input type="range" min="0" max="100" step="1" value="${v}" data-role="range"/>
+          <input type="number" min="0" max="100" step="1" value="${v}" data-role="num"/>
+        </div>
+        <input class="reason-input" type="text" value="${esc(reason)}" data-role="reason" placeholder="评分理由（可选）"/>
       </div>`;
   }).join("");
 }
@@ -282,7 +371,12 @@ async function saveEdit() {
     return;
   }
   try {
-    await bridge.apiPost("person", authBody({ name, scores: state.editing.scores, desc: $("edit-desc").value }));
+    await bridge.apiPost("person", authBody({
+      name,
+      scores: state.editing.scores,
+      desc: $("edit-desc").value,
+      reasons: state.editing.reasons,
+    }));
     toast("已保存");
     closeEdit();
     await loadList();
@@ -298,6 +392,18 @@ async function deleteEditing() {
     await bridge.apiPost("person/delete", authBody({ name }));
     toast("已删除");
     closeEdit();
+    goBack();
+    await loadList();
+  } catch (e) {
+    toast("删除失败：" + e.message, true);
+  }
+}
+
+async function deletePerson(name) {
+  if (!confirm(`确定删除「${name}」的六边形数据吗？此操作不可恢复。`)) return;
+  try {
+    await bridge.apiPost("person/delete", authBody({ name }));
+    toast("已删除");
     await loadList();
   } catch (e) {
     toast("删除失败：" + e.message, true);
@@ -343,6 +449,11 @@ function bindEvents() {
   });
 
   $("cards").addEventListener("click", (e) => {
+    const t = e.target.closest("[data-act]");
+    if (t && t.dataset.act === "detail") {
+      openDetail(t.dataset.name);
+      return;
+    }
     const card = e.target.closest(".card");
     if (card) {
       const p = state.persons.find((x) => x.name === card.dataset.name);
@@ -351,14 +462,14 @@ function bindEvents() {
   });
 
   $("table-body").addEventListener("click", (e) => {
-    const btn = e.target.closest("button[data-act]");
-    if (!btn) return;
-    const p = state.persons.find((x) => x.name === btn.dataset.name);
+    const t = e.target.closest("[data-act]");
+    if (!t) return;
+    const name = t.dataset.name;
+    const p = state.persons.find((x) => x.name === name);
     if (!p) return;
-    if (btn.dataset.act === "edit") openEdit(p);
-    else {
-      if (confirm(`确定删除「${p.name}」的六边形数据吗？此操作不可恢复。`)) deletePerson(p.name);
-    }
+    if (t.dataset.act === "detail") openDetail(name);
+    else if (t.dataset.act === "edit") openEdit(p);
+    else if (t.dataset.act === "del") deletePerson(name);
   });
 
   $("btn-add").addEventListener("click", () => openEdit(null));
@@ -379,16 +490,38 @@ function bindEvents() {
   });
 
   $("edit-sliders").addEventListener("input", (e) => {
-    const row = e.target.closest(".slider-row");
-    if (!row) return;
-    const key = row.dataset.key;
+    const block = e.target.closest(".slider-block");
+    if (!block) return;
+    const key = block.dataset.key;
+    if (e.target.dataset.role === "reason") {
+      state.editing.reasons[key] = e.target.value;
+      return;
+    }
     let v = Number(e.target.value);
     if (isNaN(v)) v = 0;
     v = Math.max(0, Math.min(100, v));
     state.editing.scores[key] = v;
-    row.querySelector('[data-role="num"]').value = v;
-    row.querySelector('[data-role="range"]').value = v;
+    block.querySelector('[data-role="num"]').value = v;
+    block.querySelector('[data-role="range"]').value = v;
     updateEditPreview();
+  });
+
+  $("detail-back").addEventListener("click", goBack);
+  $("detail-edit").addEventListener("click", () => {
+    const p = state.persons.find((x) => x.name === currentRoute());
+    if (p) openEdit(p);
+  });
+  $("detail-delete").addEventListener("click", () => {
+    const name = currentRoute();
+    deletePerson(name);
+  });
+
+  window.addEventListener("hashchange", () => {
+    if (currentRoute()) {
+      loadList();
+    } else {
+      render();
+    }
   });
 
   document.querySelectorAll(".modal-mask").forEach((mask) => {
@@ -406,16 +539,6 @@ function switchView(view) {
   $("view-cards").classList.toggle("active", view === "cards");
   $("view-table").classList.toggle("active", view === "table");
   render();
-}
-
-async function deletePerson(name) {
-  try {
-    await bridge.apiPost("person/delete", authBody({ name }));
-    toast("已删除");
-    await loadList();
-  } catch (e) {
-    toast("删除失败：" + e.message, true);
-  }
 }
 
 async function init() {

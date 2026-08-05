@@ -15,7 +15,12 @@ from astrbot.api.web import error_response, json_response, request
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
 from .store import DIMENSIONS, DEFAULT_SCORE, RadarStore
-from .tools.radar_tools import RadarGetTool, RadarSetTool
+from .tools.radar_tools import (
+    RadarGetTool,
+    RadarRankingTool,
+    RadarSearchTool,
+    RadarSetTool,
+)
 
 PLUGIN_NAME = "astrbot_plugin_hexaradar"
 PASSWORD_HEADER = "X-Radar-Password"
@@ -46,6 +51,8 @@ class Main(Star):
         self.context.add_llm_tools(
             RadarGetTool(store=self.store),
             RadarSetTool(store=self.store),
+            RadarSearchTool(store=self.store),
+            RadarRankingTool(store=self.store),
         )
         logger.info("astrbot_plugin_hexaradar 已加载")
 
@@ -106,7 +113,15 @@ class Main(Star):
             if val < 0 or val > 100:
                 return error_response(f"{DIMENSION_LABELS[key]} 评分必须在 0-100 之间")
             scores[key] = val
-        person = await self.store.upsert_person(name, scores, desc=str(payload.get("desc", "")))
+        reasons = payload.get("reasons")
+        if not isinstance(reasons, dict):
+            reasons = {}
+        person = await self.store.upsert_person(
+            name,
+            scores,
+            desc=str(payload.get("desc", "")),
+            reasons=reasons,
+        )
         return json_response({"person": person})
 
     async def api_delete(self):
@@ -127,12 +142,17 @@ class Main(Star):
     # ---------- 聊天指令（只读） ----------
 
     @filter.command("radar")
-    async def radar(self, event: AstrMessageEvent, name: str = ""):
-        """六边形能力雷达：/radar <名字> 查看某人六项评分，/radar list 查看综合分排行"""
-        name = name.strip()
-        if name in ("", "list"):
-            persons = await self.store.list_persons()
-            persons.sort(key=lambda p: p["composite"], reverse=True)
+    async def radar(
+        self,
+        event: AstrMessageEvent,
+        arg1: str = "",
+        arg2: str = "",
+        arg3: str = "",
+    ):
+        """六边形能力雷达：/radar <名字> 查看详情；/radar list 排行；/radar rank [维度] [topN] 单项排行；/radar search <关键词> 模糊搜索"""
+        sub = arg1.strip().lower()
+        if sub in ("", "list"):
+            persons = await self.store.ranking(sort_by="composite", limit=100)
             if not persons:
                 yield event.plain_result("暂无人员数据")
                 return
@@ -141,14 +161,63 @@ class Main(Star):
                 lines.append(f"{i}. {p['name']}  综合 {p['composite']} 分")
             yield event.plain_result("\n".join(lines))
             return
+
+        if sub == "rank":
+            dim_map = {
+                "综合": "composite",
+                "学习": "learning",
+                "心理": "psychology",
+                "社交": "social",
+                "判断": "judgment",
+                "认知": "self_awareness",
+                "方向": "direction",
+            }
+            sort_by = dim_map.get(arg2.strip(), "composite")
+            try:
+                top = int(arg3)
+            except ValueError:
+                top = 10
+            persons = await self.store.ranking(sort_by=sort_by, limit=top)
+            if not persons:
+                yield event.plain_result("暂无人员数据")
+                return
+            label = DIMENSION_LABELS.get(sort_by, "综合分")
+            lines = [f"【六边形能力雷达 · {label}排行】"]
+            for i, p in enumerate(persons, 1):
+                value = p["composite"] if sort_by == "composite" else p["scores"].get(sort_by, 0)
+                lines.append(f"{i}. {p['name']}  {label} {value} 分")
+            yield event.plain_result("\n".join(lines))
+            return
+
+        if sub == "search":
+            keyword = " ".join([x.strip() for x in (arg2, arg3) if x.strip()])
+            if not keyword:
+                yield event.plain_result("用法：/radar search <关键词>，支持姓名/拼音/首字母/同音")
+                return
+            persons = await self.store.search_persons(keyword)
+            if not persons:
+                yield event.plain_result(f"未找到与「{keyword}」匹配的人员")
+                return
+            lines = [f"【搜索「{keyword}」】共 {len(persons)} 人"]
+            for p in persons:
+                lines.append(f"{p['name']}  综合 {p['composite']} 分")
+            yield event.plain_result("\n".join(lines))
+            return
+
+        name = " ".join([x.strip() for x in (arg1, arg2, arg3) if x.strip()])
         person = await self.store.get_person(name)
         if not person:
             yield event.plain_result(f"未找到人员: {name}")
             return
         scores = person["scores"]
+        reasons = person.get("reasons") or {}
         lines = [f"【{person['name']}】综合 {person['composite']} 分"]
         for dim in DIMENSIONS:
-            lines.append(f"{dim['label']}: {scores.get(dim['key'], 0)}")
+            key = dim["key"]
+            reason = reasons.get(key, "")
+            lines.append(
+                f"{dim['label']}: {scores.get(key, 0)}" + (f"（{reason}）" if reason else "")
+            )
         if person.get("desc"):
             lines.append(f"备注: {person['desc']}")
         yield event.plain_result("\n".join(lines))

@@ -83,7 +83,19 @@ class RadarSetTool(FunctionTool):
                 },
                 "desc": {
                     "type": "string",
-                    "description": "备注/评价说明（可选）",
+                    "description": "整体备注/评价说明（可选）",
+                },
+                "reasons": {
+                    "type": "object",
+                    "description": (
+                        "逐项评价理由（可选）。键为六项维度英文键名（learning/psychology/social/"
+                        "judgment/self_awareness/direction），值为该维度的评分理由字符串。"
+                        "只传需要更新理由的项即可。"
+                    ),
+                    "properties": {
+                        dim["key"]: {"type": "string", "description": f"{dim['label']}的评分理由"}
+                        for dim in DIMENSIONS
+                    },
                 },
             },
             "required": ["name"],
@@ -101,6 +113,7 @@ class RadarSetTool(FunctionTool):
         self_awareness: Optional[float] = None,
         direction: Optional[float] = None,
         desc: str = "",
+        reasons: Optional[Dict[str, str]] = None,
     ):
         try:
             scores: Dict[str, float] = {
@@ -123,8 +136,78 @@ class RadarSetTool(FunctionTool):
                 for key, val in scores.items():
                     if val is None:
                         scores[key] = existing["scores"].get(key, DEFAULT_SCORE)
-            person = await self.store.upsert_person(name, scores, desc=desc or "")
+            person = await self.store.upsert_person(
+                name, scores, desc=desc or "", reasons=reasons or {}
+            )
             logger.info(f"astrbot_plugin_hexaradar: 已写入人员 {name} 的评分数据")
             return _text({"ok": True, "person": person})
+        except Exception as e:  # noqa: BLE001
+            return _text({"ok": False, "error": str(e)})
+
+
+@dataclass
+class RadarSearchTool(FunctionTool):
+    """按拼音/同音模糊搜索人员（只读）。"""
+
+    store: RadarStore | None = None
+
+    name: str = "search_radar_persons"
+    description: str = (
+        "按关键词搜索六边形能力雷达中的人员，支持姓名、全拼、拼音首字母、同音模糊匹配"
+        "（如搜「xm」「xiaom」「晓铭」均可命中「小明」）。返回匹配人员及其六项评分与综合分。"
+    )
+    parameters: dict = field(
+        default_factory=lambda: {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "搜索关键词（姓名/拼音/首字母/同音）",
+                },
+            },
+            "required": ["query"],
+        }
+    )
+
+    async def run(self, event: AstrMessageEvent, query: str):
+        try:
+            persons = await self.store.search_persons(query or "")
+            return _text({"ok": True, "count": len(persons), "persons": persons})
+        except Exception as e:  # noqa: BLE001
+            return _text({"ok": False, "error": str(e)})
+
+
+@dataclass
+class RadarRankingTool(FunctionTool):
+    """按综合分或任一维度排行（只读）。"""
+
+    store: RadarStore | None = None
+
+    name: str = "get_radar_ranking"
+    description: str = (
+        "获取六边形能力雷达的人员排行。sort_by 可选 composite（综合分，默认）或六项维度键名"
+        "（learning/psychology/social/judgment/self_awareness/direction），按分数降序返回前 limit 名。"
+    )
+    parameters: dict = field(
+        default_factory=lambda: {
+            "type": "object",
+            "properties": {
+                "sort_by": {
+                    "type": "string",
+                    "description": "排序维度：composite/learning/psychology/social/judgment/self_awareness/direction",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "返回人数上限，默认 10",
+                },
+            },
+            "required": [],
+        }
+    )
+
+    async def run(self, event: AstrMessageEvent, sort_by: str = "composite", limit: int = 10):
+        try:
+            persons = await self.store.ranking(sort_by=sort_by, limit=limit)
+            return _text({"ok": True, "count": len(persons), "sort_by": sort_by, "persons": persons})
         except Exception as e:  # noqa: BLE001
             return _text({"ok": False, "error": str(e)})

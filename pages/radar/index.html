@@ -59,6 +59,30 @@
           <tbody id="table-body"></tbody>
         </table>
       </div>
+      <div id="detail" class="detail" hidden>
+        <div class="detail-head">
+          <button id="detail-back" class="btn ghost">← 返回</button>
+        </div>
+        <div class="detail-layout">
+          <div class="detail-left">
+            <div id="detail-avatar" class="avatar large"></div>
+            <h2 id="detail-name" class="detail-name"></h2>
+            <div id="detail-radar" class="detail-radar"></div>
+            <div class="composite-box">综合 <span id="detail-composite" class="composite-value">0</span> 分</div>
+          </div>
+          <div class="detail-right">
+            <div id="detail-scores" class="detail-scores"></div>
+            <div class="detail-desc">
+              <h3>备注</h3>
+              <p id="detail-desc-text">—</p>
+            </div>
+            <div class="detail-actions">
+              <button id="detail-edit" class="btn">编辑</button>
+              <button id="detail-delete" class="btn danger">删除</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
 
     <div id="password-modal" class="modal-mask" hidden>
@@ -87,8 +111,7 @@
               <span>姓名</span>
               <input id="edit-name" type="text" placeholder="人员姓名" />
             </label>
-            <div id="edit-sliders" class="sliders"></div>
-            <label class="field">
+            <div id="edit-sliders" class="sliders"></div>            <label class="field">
               <span>备注</span>
               <input id="edit-desc" type="text" placeholder="备注 / 评价说明（可选）" />
             </label>
