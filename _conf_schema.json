@@ -8,5 +8,10 @@
     "description": "WebUI 访问密码（启用密码保护后生效）",
     "type": "string",
     "default": ""
+  },
+  "show_social_score": {
+    "description": "是否显示社会参考分（基于 25 岁成熟基准与年龄系数计算；未填年龄的人员不显示）",
+    "type": "bool",
+    "default": false
   }
 }

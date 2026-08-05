@@ -33,7 +33,9 @@ class Main(Star):
         super().__init__(context)
         self.config = config
         data_dir = Path(get_astrbot_data_path()) / "plugin_data" / self.name
-        self.store = RadarStore(data_dir)
+        self.store = RadarStore(
+            data_dir, social_enabled=bool(config.get("show_social_score", False))
+        )
 
         self.context.register_web_api(
             f"/{PLUGIN_NAME}/list", self.api_list, ["GET"], "获取人员列表（支持 q 搜索）"
@@ -116,11 +118,22 @@ class Main(Star):
         reasons = payload.get("reasons")
         if not isinstance(reasons, dict):
             reasons = {}
+        if "age" in payload and payload["age"] is not None and payload["age"] != "":
+            try:
+                age = int(payload["age"])
+            except (TypeError, ValueError):
+                return error_response("年龄必须为整数")
+            if age < 0 or age > 120:
+                return error_response("年龄必须在 0-120 之间")
+        else:
+            age = None
         person = await self.store.upsert_person(
             name,
             scores,
             desc=str(payload.get("desc", "")),
             reasons=reasons,
+            age=age,
+            keep_age="age" not in payload,
         )
         return json_response({"person": person})
 

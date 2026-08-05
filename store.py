@@ -44,9 +44,57 @@ WEIGHTS: Dict[str, float] = {
 
 SCORE_MIN, SCORE_MAX = 0, 100
 DEFAULT_SCORE = 60
+AGE_MIN, AGE_MAX = 0, 120
 
 # 中文标签 → 键名，用于容错输入
 LABEL_TO_KEY: Dict[str, str] = {dim["label"]: dim["key"] for dim in DIMENSIONS}
+
+# ---- 社会参考分算法（25 岁成熟基准）----
+
+# 25 岁基准权重
+SOCIAL_WEIGHTS: Dict[str, float] = {
+    "learning": 1.0,
+    "psychology": 2.5,
+    "social": 2.5,
+    "judgment": 3.0,
+    "self_awareness": 2.0,
+    "direction": 1.5,
+}
+
+# 年龄系数节点表：[(年龄, {维度: 系数}), ...]
+SOCIAL_AGE_NODES: List[tuple] = [
+    (10, {"learning": 2.5, "psychology": 0.4, "social": 0.6, "judgment": 0.2, "self_awareness": 0.2, "direction": 0.1}),
+    (16, {"learning": 1.8, "psychology": 0.8, "social": 0.7, "judgment": 0.6, "self_awareness": 0.6, "direction": 0.4}),
+    (20, {"learning": 1.4, "psychology": 0.95, "social": 0.9, "judgment": 0.8, "self_awareness": 0.8, "direction": 0.65}),
+    (25, {"learning": 1.0, "psychology": 1.0, "social": 1.0, "judgment": 1.0, "self_awareness": 1.0, "direction": 1.0}),
+    (30, {"learning": 0.7, "psychology": 0.95, "social": 0.9, "judgment": 1.1, "self_awareness": 1.2, "direction": 1.5}),
+    (40, {"learning": 0.4, "psychology": 0.9, "social": 0.7, "judgment": 1.2, "self_awareness": 1.4, "direction": 2.0}),
+]
+
+
+def _social_coefficients(age: int) -> Dict[str, float]:
+    """分段线性插值计算各维度年龄系数。x<=10 取 10 岁节点，x>=40 取 40 岁节点。"""
+    x = max(10, min(40, age))
+    for i, (a1, c1) in enumerate(SOCIAL_AGE_NODES):
+        a2, c2 = SOCIAL_AGE_NODES[i + 1] if i + 1 < len(SOCIAL_AGE_NODES) else (a1, c1)
+        if a1 <= x <= a2:
+            if a1 == a2:
+                return dict(c1)
+            ratio = (x - a1) / (a2 - a1)
+            return {k: c1[k] + ratio * (c2[k] - c1[k]) for k in c1}
+    return dict(SOCIAL_AGE_NODES[-1][1])
+
+
+def compute_social(scores: Dict[str, float], age: Optional[int]) -> Optional[float]:
+    """社会参考分 = Σ(W·c·S) / Σ(W·c)，百分制。无年龄返回 None。"""
+    if age is None:
+        return None
+    coeff = _social_coefficients(int(age))
+    num = sum(SOCIAL_WEIGHTS[k] * coeff[k] * float(scores.get(k, 0)) for k in SOCIAL_WEIGHTS)
+    den = sum(SOCIAL_WEIGHTS[k] * coeff[k] for k in SOCIAL_WEIGHTS)
+    if den <= 0:
+        return None
+    return round(num / den, 1)
 
 
 def compute_composite(scores: Dict[str, float]) -> float:
@@ -72,13 +120,14 @@ def _pinyin_initials(text: str) -> str:
 class RadarStore:
     """人员六边形数据存储。线程安全（asyncio.Lock）。"""
 
-    def __init__(self, data_dir: str | Path):
+    def __init__(self, data_dir: str | Path, social_enabled: bool = False):
         self._data_dir = Path(data_dir)
         self._data_dir.mkdir(parents=True, exist_ok=True)
         self._file = self._data_dir / "scores.json"
         self._lock = asyncio.Lock()
         self._persons: Dict[str, Dict[str, Any]] = {}
         self._mtime: float | None = None
+        self._social_enabled = social_enabled
         self._load()
 
     # ---------- 内部 ----------
@@ -124,13 +173,19 @@ class RadarStore:
             result[key] = max(SCORE_MIN, min(SCORE_MAX, val))
         return result
 
-    @staticmethod
-    def _to_public(person: Dict[str, Any]) -> Dict[str, Any]:
+    def _to_public(self, person: Dict[str, Any]) -> Dict[str, Any]:
         """附加综合分等展示字段，返回副本。"""
         out = dict(person)
         out["scores"] = dict(person.get("scores", {}))
         out["reasons"] = dict(person.get("reasons") or {})
         out["composite"] = compute_composite(out["scores"])
+        out["age"] = person.get("age")
+        out["social_enabled"] = self._social_enabled
+        out["social_composite"] = None
+        out["social_coeffs"] = None
+        if self._social_enabled and person.get("age") is not None:
+            out["social_composite"] = compute_social(out["scores"], person["age"])
+            out["social_coeffs"] = _social_coefficients(int(person["age"]))
         name = str(person.get("name", ""))
         initials = _pinyin_initials(name).upper()
         first = initials[:1] if initials else ""
@@ -166,15 +221,21 @@ class RadarStore:
     async def ranking(
         self, sort_by: str = "composite", limit: int = 10
     ) -> List[Dict[str, Any]]:
-        """按综合分或任一维度降序排行。"""
-        valid = [dim["key"] for dim in DIMENSIONS] + ["composite"]
+        """按综合分/社会参考分/任一维度降序排行。"""
+        valid = [dim["key"] for dim in DIMENSIONS] + ["composite", "social_composite"]
         if sort_by not in valid:
             sort_by = "composite"
         async with self._lock:
             self._sync_from_disk()
             persons = [self._to_public(p) for p in self._persons.values()]
-        key = lambda p: p[sort_by] if sort_by == "composite" else p["scores"].get(sort_by, 0)  # noqa: E731
-        persons.sort(key=key, reverse=True)
+        if sort_by == "social_composite":
+            persons.sort(
+                key=lambda p: (p["social_composite"] is None, -(p["social_composite"] or 0))
+            )
+        elif sort_by == "composite":
+            persons.sort(key=lambda p: p["composite"], reverse=True)
+        else:
+            persons.sort(key=lambda p: p["scores"].get(sort_by, 0), reverse=True)
         return persons[: max(1, min(limit, 100))]
 
     # ---------- 写入 ----------
@@ -185,11 +246,19 @@ class RadarStore:
         scores: Dict[str, Any],
         desc: str = "",
         reasons: Optional[Dict[str, Any]] = None,
+        age: Optional[int] = None,
+        keep_age: bool = True,
     ) -> Dict[str, Any]:
-        """新建或更新人员。name 唯一，存在则覆盖。"""
+        """新建或更新人员。name 唯一，存在则覆盖。
+
+        age: 显式传 None 表示清空年龄；keep_age=True 且未显式传 age 时保留旧值。
+        """
         name = name.strip()
         if not name:
             raise ValueError("人员名称不能为空")
+        if age is not None:
+            if not (AGE_MIN <= age <= AGE_MAX):
+                raise ValueError(f"年龄必须在 {AGE_MIN}-{AGE_MAX} 之间")
         scores_norm = self._normalize_scores(scores)
         reasons_norm: Dict[str, str] = {}
         if isinstance(reasons, dict):
@@ -201,11 +270,15 @@ class RadarStore:
             old = self._persons.get(name, {})
             merged_reasons = dict(old.get("reasons") or {})
             merged_reasons.update(reasons_norm)
+            new_age = old.get("age")
+            if age is not None or not keep_age:
+                new_age = age
             person = {
                 "name": name,
                 "desc": desc.strip() or old.get("desc", ""),
                 "scores": scores_norm,
                 "reasons": merged_reasons,
+                "age": new_age,
                 "updated_at": int(time.time()),
             }
             self._persons[name] = person

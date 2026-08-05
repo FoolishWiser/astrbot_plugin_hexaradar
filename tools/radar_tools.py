@@ -97,6 +97,10 @@ class RadarSetTool(FunctionTool):
                         for dim in DIMENSIONS
                     },
                 },
+                "age": {
+                    "type": "integer",
+                    "description": "年龄（可选，0-120）。不传则保留原年龄；传 null 可清空年龄。",
+                },
             },
             "required": ["name"],
         }
@@ -114,6 +118,7 @@ class RadarSetTool(FunctionTool):
         direction: Optional[float] = None,
         desc: str = "",
         reasons: Optional[Dict[str, str]] = None,
+        age: Optional[int] = None,
     ):
         try:
             scores: Dict[str, float] = {
@@ -137,7 +142,12 @@ class RadarSetTool(FunctionTool):
                     if val is None:
                         scores[key] = existing["scores"].get(key, DEFAULT_SCORE)
             person = await self.store.upsert_person(
-                name, scores, desc=desc or "", reasons=reasons or {}
+                name,
+                scores,
+                desc=desc or "",
+                reasons=reasons or {},
+                age=age,
+                keep_age=age is None,
             )
             logger.info(f"astrbot_plugin_hexaradar: 已写入人员 {name} 的评分数据")
             return _text({"ok": True, "person": person})

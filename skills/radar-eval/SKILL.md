@@ -24,14 +24,19 @@ description: 六边形能力雷达（astrbot_plugin_hexaradar）使用口径。�
 
 ## 可调用的工具
 
-- `get_radar_scores(name?)`：查询数据。不传 name 返回全部人员（含综合分）；传 name 查询单个。
-- `set_radar_scores(name, learning, psychology, social, judgment, self_awareness, direction, desc?, reasons?)`：
+- `get_radar_scores(name?)`：查询数据。不传 name 返回全部人员（含综合分、社会参考分与年龄）；传 name 查询单个。
+- `set_radar_scores(name, learning, psychology, social, judgment, self_awareness, direction, desc?, reasons?, age?)`：
   新建或更新人员评分。name 不存在则创建，存在则更新。六项评分均可选：
   只传需要修改的项即可，未传的项在更新时保留原值，新建时默认为 60。评分必须为 0-100 的数值。
-  `reasons`（可选）为逐项评价理由：键为六项英文键名（learning/psychology/social/judgment/self_awareness/direction），值为该维度评分依据的简短说明。
+  `reasons`（可选）为逐项评价理由：键为六项英文键名，值为该维度评分依据的简短说明。
+  `age`（可选）为年龄（0-120），用于计算社会参考分；不传保留原年龄。
 - `search_radar_persons(query)`：按关键词模糊搜索，支持姓名、全拼、拼音首字母、同音匹配。
-- `get_radar_ranking(sort_by?, limit?)`：获取排行。sort_by 默认 composite（综合分），也可填
-  learning/psychology/social/judgment/self_awareness/direction 按单项排行。
+- `get_radar_ranking(sort_by?, limit?)`：获取排行。sort_by 默认 composite（综合分），
+  可填 social_composite（社会参考分）或 learning/psychology/social/judgment/self_awareness/direction 按单项排行。
+
+## 社会参考分（25 岁成熟基准）
+
+若插件配置开启「显示社会参考分」：系统会基于六项评分与年龄自动计算社会参考分（以 25 岁健全成年人为基准的年龄系数加权综合分）。未填年龄的人员不产生社会参考分。AI 无需手动计算该分数。
 
 ## 使用准则
 

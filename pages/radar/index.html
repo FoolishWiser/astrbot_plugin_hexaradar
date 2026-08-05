@@ -16,6 +16,7 @@
         <input id="search" class="search" type="search" placeholder="搜索：姓名 / 拼音 / 同音，如 xm、晓铭" autocomplete="off" />
         <select id="sort-select" class="sort-select" title="排序方式">
           <option value="composite">按综合分</option>
+          <option value="social_composite">按社会参考分</option>
           <option value="name">按名称（拼音）</option>
           <option value="learning">按学习能力</option>
           <option value="psychology">按心理承受力</option>
@@ -27,6 +28,7 @@
         <button id="sort-dir" class="btn ghost" title="切换升降序">↓</button>
         <div class="seg" role="tablist">
           <button id="view-cards" class="seg-btn active" title="卡片视图">▦</button>
+          <button id="view-radars" class="seg-btn" title="雷达图视图">⬡</button>
           <button id="view-table" class="seg-btn" title="列表视图">☰</button>
         </div>
         <button id="btn-add" class="btn primary">+ 新建人员</button>
@@ -41,6 +43,7 @@
         <p id="empty-text">暂无人员数据，点击「+ 新建人员」开始</p>
       </div>
       <div id="cards" class="cards" hidden></div>
+      <div id="radars" class="radars" hidden></div>
       <div id="table-wrap" class="table-wrap" hidden>
         <table class="table">
           <thead>
@@ -60,12 +63,18 @@
       <div id="detail" class="detail" hidden>
         <div class="detail-head">
           <button id="detail-back" class="btn ghost">← 返回</button>
+          <div id="detail-mode" class="seg detail-mode" hidden>
+            <button id="mode-base" class="seg-btn active">个人基准分</button>
+            <button id="mode-social" class="seg-btn">社会参考分</button>
+          </div>
         </div>
         <div class="detail-layout">
           <div class="detail-left">
             <div id="detail-avatar" class="avatar large"></div>
             <h2 id="detail-name" class="detail-name"></h2>
+            <p id="detail-age" class="detail-age"></p>
             <div id="detail-radar" class="detail-radar"></div>
+            <div id="detail-social-note" class="social-note" hidden></div>
             <div class="composite-box">综合 <span id="detail-composite" class="composite-value">0</span> 分</div>
           </div>
           <div class="detail-right">
@@ -105,8 +114,14 @@
             <div class="composite-box">综合 <span id="view-composite" class="composite-value">0</span> 分</div>
           </div>
           <div class="edit-right">
+            <div id="view-mode" class="seg detail-mode" hidden>
+              <button id="v-mode-base" class="seg-btn active">个人基准分</button>
+              <button id="v-mode-social" class="seg-btn">社会参考分</button>
+            </div>
             <div id="view-name" class="view-name"></div>
+            <div id="view-age" class="detail-age"></div>
             <div id="view-scores" class="detail-scores"></div>
+            <div id="view-social-note" class="social-note" hidden></div>
             <div class="detail-desc">
               <h3>备注</h3>
               <p id="view-desc-text">—</p>
@@ -127,6 +142,10 @@
             <label class="field">
               <span>姓名</span>
               <input id="edit-name" type="text" placeholder="人员姓名" />
+            </label>
+            <label class="field">
+              <span>年龄</span>
+              <input id="edit-age" type="number" min="0" max="120" step="1" placeholder="可填，用于社会参考分" />
             </label>
             <div id="edit-sliders" class="sliders"></div>
             <label class="field">

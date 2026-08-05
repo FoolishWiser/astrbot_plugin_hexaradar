@@ -18,6 +18,8 @@ const state = {
   sortKey: "composite",
   sortDir: "desc",
   pyFilter: null,
+  socialEnabled: false,
+  scoreMode: "base",
   editing: null,
   viewing: null,
 };
@@ -132,6 +134,10 @@ function sortPersons() {
     let cmp;
     if (sortKey === "name") {
       cmp = collator.compare(a.name, b.name);
+    } else if (sortKey === "social_composite") {
+      const av = a.social_composite == null ? -1 : a.social_composite;
+      const bv = b.social_composite == null ? -1 : b.social_composite;
+      cmp = av - bv;
     } else if (SCORE_KEYS.has(sortKey)) {
       cmp = (Number(a.scores?.[sortKey]) || 0) - (Number(b.scores?.[sortKey]) || 0);
     } else {
@@ -144,6 +150,11 @@ function sortPersons() {
 
 function defaultDir(key) {
   return key === "name" ? "asc" : "desc";
+}
+
+function socialBadge(p) {
+  if (!state.socialEnabled || p.social_composite == null) return "";
+  return `<span class="badge social" title="社会参考分（25岁成熟基准）">社 ${p.social_composite}</span>`;
 }
 
 function dimLabel(key) {
@@ -162,17 +173,29 @@ function renderMain() {
       : "暂无人员数据，点击「+ 新建人员」开始";
 
   const cards = $("cards");
+  const radars = $("radars");
   const tableWrap = $("table-wrap");
   $("detail").hidden = true;
   const isCards = state.view === "cards";
+  const isRadars = state.view === "radars";
   cards.hidden = !isCards;
-  tableWrap.hidden = isCards;
-  $("py-stack").hidden = isCards || (persons.length === 0 && !state.pyFilter);
+  radars.hidden = !isRadars;
+  tableWrap.hidden = isCards || isRadars;
+  $("py-stack").hidden = isCards || isRadars || (persons.length === 0 && !state.pyFilter);
   $("py-stack").classList.toggle("filtered", !!state.pyFilter);
   $("py-reset").classList.toggle("show", !!state.pyFilter);
 
+  const socialOpt = $("sort-select").querySelector('option[value="social_composite"]');
+  if (socialOpt) socialOpt.hidden = !state.socialEnabled;
+  if (!state.socialEnabled && state.sortKey === "social_composite") {
+    state.sortKey = "composite";
+    $("sort-select").value = state.sortKey;
+  }
+
   if (isCards) {
     cards.innerHTML = persons.map(cardHTML).join("");
+  } else if (isRadars) {
+    radars.innerHTML = persons.map(radarCardHTML).join("");
   } else {
     $("table-body").innerHTML = persons.map(tableRowHTML).join("");
     document.querySelectorAll("th[data-sort]").forEach((th) => {
@@ -249,8 +272,23 @@ function cardHTML(p) {
           ${p.desc ? `<div class="card-desc">${esc(p.desc)}</div>` : ""}
         </div>
         <span class="badge ${badgeClass(p.composite)}">${p.composite}</span>
+        ${socialBadge(p)}
       </div>
       <div class="card-mini"><div class="mini-bars">${bars}</div></div>
+    </div>`;
+}
+
+function radarCardHTML(p) {
+  return `
+    <div class="radar-card" data-name="${esc(p.name)}">
+      <div class="radar-chart">${radarSVG(p.scores, 190)}</div>
+      <div class="radar-card-foot">
+        <button class="name-link" data-act="detail" data-name="${esc(p.name)}">${esc(p.name)}</button>
+        <div class="radar-badges">
+          <span class="badge ${badgeClass(p.composite)}">${p.composite}</span>
+          ${socialBadge(p)}
+        </div>
+      </div>
     </div>`;
 }
 
@@ -265,6 +303,7 @@ function tableRowHTML(p) {
         <div class="name-cell">
           <button class="name-link" data-act="detail" data-name="${esc(p.name)}">${esc(p.name)}</button>
           ${compBadge}
+          ${socialBadge(p)}
           ${dimBadge}
           <div class="cell-actions">
             <button class="icon-btn" data-act="edit" data-name="${esc(p.name)}" title="编辑">✎</button>
@@ -285,6 +324,7 @@ async function loadList() {
       throw new Error("接口返回格式异常: " + JSON.stringify(data));
     }
     state.persons = data.persons || [];
+    state.socialEnabled = !!data.social_enabled;
     $("btn-lock").hidden = !pwd();
     render();
   } catch (e) {
@@ -349,10 +389,29 @@ function goBack() {
   location.hash = "";
 }
 
+function socialNoteHTML(p) {
+  if (!state.socialEnabled || p.social_composite == null) return "";
+  const c = p.social_coeffs || {};
+  const parts = DIMS.map((d) => `${d.label}${c[d.key] ?? "—"}`).join(" ");
+  return `年龄 ${p.age} · 年龄系数 ${parts}`;
+}
+
+function applyScoreMode(p) {
+  const social = state.socialEnabled && p.social_composite != null && p.age != null;
+  $("detail-mode").hidden = !social;
+  const isSocial = state.scoreMode === "social" && social;
+  $("mode-base").classList.toggle("active", !isSocial);
+  $("mode-social").classList.toggle("active", isSocial);
+  $("detail-composite").textContent = isSocial ? p.social_composite : p.composite;
+  $("detail-social-note").hidden = !isSocial;
+  if (isSocial) $("detail-social-note").textContent = socialNoteHTML(p);
+}
+
 function renderDetail() {
   const name = currentRoute();
   const p = state.persons.find((x) => x.name === name);
   $("cards").hidden = true;
+  $("radars").hidden = true;
   $("table-wrap").hidden = true;
   $("empty").hidden = true;
   $("py-stack").hidden = true;
@@ -363,10 +422,13 @@ function renderDetail() {
     $("detail-name").textContent = name;
     $("detail-radar").innerHTML = "";
     $("detail-composite").textContent = "0";
+    $("detail-age").textContent = "";
     $("detail-scores").innerHTML = `<p class="detail-missing">未找到人员「${esc(name)}」，可能已被删除或搜索过滤。</p>`;
     $("detail-desc-text").textContent = "—";
     $("detail-edit").hidden = true;
     $("detail-delete").hidden = true;
+    $("detail-mode").hidden = true;
+    $("detail-social-note").hidden = true;
     return;
   }
   $("detail-edit").hidden = false;
@@ -374,8 +436,8 @@ function renderDetail() {
   $("detail-avatar").textContent = [...p.name][0] || "?";
   $("detail-avatar").style.cssText = avatarStyle(p.name);
   $("detail-name").textContent = p.name;
+  $("detail-age").textContent = p.age != null ? `年龄 ${p.age}` : "";
   $("detail-radar").innerHTML = radarSVG(p.scores, 300);
-  $("detail-composite").textContent = p.composite;
   const reasons = p.reasons || {};
   $("detail-scores").innerHTML = DIMS.map((dim) => {
     const v = Number(p.scores[dim.key] || 0);
@@ -391,6 +453,7 @@ function renderDetail() {
       </div>`;
   }).join("");
   $("detail-desc-text").textContent = p.desc || "—";
+  applyScoreMode(p);
 }
 
 function openView(person) {
@@ -399,6 +462,7 @@ function openView(person) {
   $("view-radar").innerHTML = radarSVG(person.scores, 260);
   $("view-composite").textContent = person.composite;
   $("view-name").textContent = person.name;
+  $("view-age").textContent = person.age != null ? `年龄 ${person.age}` : "";
   const reasons = person.reasons || {};
   $("view-scores").innerHTML = DIMS.map((dim) => {
     const v = Number(person.scores[dim.key] || 0);
@@ -414,6 +478,14 @@ function openView(person) {
       </div>`;
   }).join("");
   $("view-desc-text").textContent = person.desc || "—";
+  const social = state.socialEnabled && person.social_composite != null && person.age != null;
+  $("view-mode").hidden = !social;
+  const isSocial = state.scoreMode === "social" && social;
+  $("v-mode-base").classList.toggle("active", !isSocial);
+  $("v-mode-social").classList.toggle("active", isSocial);
+  $("view-composite").textContent = isSocial ? person.social_composite : person.composite;
+  $("view-social-note").hidden = !isSocial;
+  if (isSocial) $("view-social-note").textContent = socialNoteHTML(person);
   $("view-body").hidden = false;
   $("edit-body").hidden = true;
   $("edit-modal").hidden = false;
@@ -427,6 +499,7 @@ function openEdit(person) {
     state.editing = {
       name: person.name,
       desc: person.desc || "",
+      age: person.age != null ? person.age : null,
       scores: { ...person.scores },
       reasons: { ...(person.reasons || {}) },
       isNew: false,
@@ -434,11 +507,12 @@ function openEdit(person) {
   } else {
     const scores = {};
     for (const dim of DIMS) scores[dim.key] = 60;
-    state.editing = { name: "", desc: "", scores, reasons: {}, isNew: true };
+    state.editing = { name: "", desc: "", age: null, scores, reasons: {}, isNew: true };
   }
   $("edit-title").textContent = state.editing.isNew ? "新建人员" : `编辑：${state.editing.name}`;
   $("edit-name").value = state.editing.name;
   $("edit-name").readOnly = !state.editing.isNew;
+  $("edit-age").value = state.editing.age != null ? state.editing.age : "";
   $("edit-desc").value = state.editing.desc;
   $("edit-delete").hidden = state.editing.isNew;
   buildSliders();
@@ -482,12 +556,19 @@ async function saveEdit() {
     toast("请输入姓名", true);
     return;
   }
+  const ageRaw = $("edit-age").value.trim();
+  const age = ageRaw === "" ? "" : Number(ageRaw);
+  if (age !== "" && (isNaN(age) || age < 0 || age > 120)) {
+    toast("年龄必须在 0-120 之间", true);
+    return;
+  }
   try {
     await bridge.apiPost("person", authBody({
       name,
       scores: state.editing.scores,
       desc: $("edit-desc").value,
       reasons: state.editing.reasons,
+      age,
     }));
     toast("已保存");
     closeEdit();
@@ -546,6 +627,7 @@ function bindEvents() {
   });
 
   $("view-cards").addEventListener("click", () => switchView("cards"));
+  $("view-radars").addEventListener("click", () => switchView("radars"));
   $("view-table").addEventListener("click", () => switchView("table"));
 
   document.querySelectorAll("th[data-sort]").forEach((th) => {
@@ -584,6 +666,30 @@ function bindEvents() {
     if (t.dataset.act === "detail") openDetail(name);
     else if (t.dataset.act === "edit") openEdit(p);
     else if (t.dataset.act === "del") deletePerson(name);
+  });
+
+  $("radars").addEventListener("click", (e) => {
+    const t = e.target.closest("[data-act]");
+    if (t && t.dataset.act === "detail") {
+      openDetail(t.dataset.name);
+    }
+  });
+
+  $("mode-base").addEventListener("click", () => {
+    state.scoreMode = "base";
+    renderDetail();
+  });
+  $("mode-social").addEventListener("click", () => {
+    state.scoreMode = "social";
+    renderDetail();
+  });
+  $("v-mode-base").addEventListener("click", () => {
+    state.scoreMode = "base";
+    if (state.viewing) openView(state.viewing);
+  });
+  $("v-mode-social").addEventListener("click", () => {
+    state.scoreMode = "social";
+    if (state.viewing) openView(state.viewing);
   });
 
   $("btn-add").addEventListener("click", () => openEdit(null));
@@ -663,6 +769,7 @@ function bindEvents() {
 function switchView(view) {
   state.view = view;
   $("view-cards").classList.toggle("active", view === "cards");
+  $("view-radars").classList.toggle("active", view === "radars");
   $("view-table").classList.toggle("active", view === "table");
   render();
 }
