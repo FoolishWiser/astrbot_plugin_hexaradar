@@ -93,7 +93,13 @@ class Main(Star):
             f"astrbot_plugin_hexaradar: WebUI list 请求 q={q!r}，返回 {len(persons)} 人，"
             f"数据文件={file}（存在={file.exists()}）"
         )
-        return json_response({"persons": persons, "count": len(persons)})
+        return json_response(
+            {
+                "persons": persons,
+                "count": len(persons),
+                "social_enabled": bool(self.config.get("show_social_score", False)),
+            }
+        )
 
     async def api_upsert(self):
         payload = await request.json(default={})

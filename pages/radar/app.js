@@ -324,7 +324,7 @@ async function loadList() {
       throw new Error("接口返回格式异常: " + JSON.stringify(data));
     }
     state.persons = data.persons || [];
-    state.socialEnabled = !!data.social_enabled;
+    state.socialEnabled = !!(data.social_enabled ?? state.persons[0]?.social_enabled);
     $("btn-lock").hidden = !pwd();
     render();
   } catch (e) {
