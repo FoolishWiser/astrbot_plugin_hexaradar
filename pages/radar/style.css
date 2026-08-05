@@ -336,6 +336,10 @@ body {
   flex-wrap: wrap;
 }
 
+.name-cell .badge {
+  margin-left: 0;
+}
+
 .card-mini {
   display: flex;
   justify-content: center;
