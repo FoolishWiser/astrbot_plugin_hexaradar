@@ -420,6 +420,7 @@ function openView(person) {
   $("view-body").hidden = false;
   $("edit-body").hidden = true;
   $("edit-modal").hidden = false;
+  $("edit-modal").querySelector(".modal").scrollTop = 0;
 }
 
 function openEdit(person) {
@@ -446,6 +447,8 @@ function openEdit(person) {
   buildSliders();
   updateEditPreview();
   $("edit-modal").hidden = false;
+  $("edit-modal").querySelector(".modal").scrollTop = 0;
+  $("edit-sliders").scrollTop = 0;
 }
 
 function closeEdit() {
