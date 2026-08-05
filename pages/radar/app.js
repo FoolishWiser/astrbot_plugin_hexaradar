@@ -166,7 +166,8 @@ function renderMain() {
   const isCards = state.view === "cards";
   cards.hidden = !isCards;
   tableWrap.hidden = isCards;
-  $("py-index").hidden = isCards || (persons.length === 0 && !state.pyFilter);
+  $("py-stack").hidden = isCards || (persons.length === 0 && !state.pyFilter);
+  $("py-reset").hidden = !state.pyFilter;
 
   if (isCards) {
     cards.innerHTML = persons.map(cardHTML).join("");
@@ -356,7 +357,7 @@ function renderDetail() {
   $("cards").hidden = true;
   $("table-wrap").hidden = true;
   $("empty").hidden = true;
-  $("py-index").hidden = true;
+  $("py-stack").hidden = true;
   $("detail").hidden = false;
   if (!p) {
     $("detail-avatar").textContent = "?";
