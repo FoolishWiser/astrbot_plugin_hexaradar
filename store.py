@@ -131,6 +131,13 @@ class RadarStore:
         out["scores"] = dict(person.get("scores", {}))
         out["reasons"] = dict(person.get("reasons") or {})
         out["composite"] = compute_composite(out["scores"])
+        name = str(person.get("name", ""))
+        initials = _pinyin_initials(name).upper()
+        first = initials[:1] if initials else ""
+        if not first:
+            ch = name[:1].upper()
+            first = ch if ch.isalpha() else "#"
+        out["py_initial"] = first
         return out
 
     # ---------- 查询 ----------

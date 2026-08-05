@@ -135,6 +135,15 @@ function sortPersons() {
   return arr;
 }
 
+function defaultDir(key) {
+  return key === "name" ? "asc" : "desc";
+}
+
+function dimLabel(key) {
+  const dim = DIMS.find((d) => d.key === key);
+  return dim ? dim.label : null;
+}
+
 function renderMain() {
   const persons = sortPersons();
   const empty = $("empty");
@@ -149,17 +158,50 @@ function renderMain() {
   const isCards = state.view === "cards";
   cards.hidden = !isCards;
   tableWrap.hidden = isCards;
+  $("py-index").hidden = isCards || persons.length === 0;
 
   if (isCards) {
     cards.innerHTML = persons.map(cardHTML).join("");
+    $("py-index").innerHTML = "";
   } else {
     $("table-body").innerHTML = persons.map(tableRowHTML).join("");
     document.querySelectorAll("th[data-sort]").forEach((th) => {
       th.classList.toggle("sorted", th.dataset.sort === state.sortKey);
     });
+    const label = dimLabel(state.sortKey);
+    const thSortBy = $("th-sortby");
+    thSortBy.hidden = !label;
+    if (label) {
+      thSortBy.textContent = `${label} ${state.sortDir === "desc" ? "↓" : "↑"}`;
+      thSortBy.classList.add("sorted");
+    } else {
+      thSortBy.classList.remove("sorted");
+    }
+    renderPyIndex(persons);
   }
 
   $("sort-dir").textContent = state.sortDir === "desc" ? "↓" : "↑";
+}
+
+function renderPyIndex(persons) {
+  const present = new Set(persons.map((p) => p.py_initial || "#"));
+  const letters = [];
+  if (present.has("#")) letters.push("#");
+  for (let c = 65; c <= 90; c++) letters.push(String.fromCharCode(c));
+  const nav = $("py-index");
+  nav.innerHTML = letters.map((l) => {
+    const on = present.has(l);
+    return `<button class="py-item ${on ? "on" : "off"}" data-letter="${l}" ${on ? "" : "disabled"}>${l}</button>`;
+  }).join("");
+  nav.querySelectorAll(".py-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const letter = btn.dataset.letter;
+      const idx = persons.findIndex((p) => (p.py_initial || "#") >= letter);
+      if (idx === -1) return;
+      const row = $("table-body").querySelector(`tr[data-row="${esc(persons[idx].name)}"]`);
+      if (row) row.scrollIntoView({ block: "start", behavior: "smooth" });
+    });
+  });
 }
 
 function render() {
@@ -176,11 +218,21 @@ function render() {
 }
 
 function cardHTML(p) {
-  const bars = DIMS.map((dim) => {
+  const ordered = [...DIMS];
+  if (SCORE_KEYS.has(state.sortKey)) {
+    const i = ordered.findIndex((d) => d.key === state.sortKey);
+    if (i > 0) {
+      const [first] = ordered.splice(i, 1);
+      ordered.unshift(first);
+    }
+  }
+  const bars = ordered.map((dim) => {
     const v = Number(p.scores[dim.key] || 0);
+    const isSorted = dim.key === state.sortKey;
+    const arrow = isSorted ? (state.sortDir === "desc" ? " ↓" : " ↑") : "";
     return `
-      <div class="bar-row">
-        <span class="bar-label">${dim.label}</span>
+      <div class="bar-row ${isSorted ? "sorted-first" : ""}">
+        <span class="bar-label">${dim.label}${arrow}</span>
         <span class="bar-track"><span class="bar-fill" style="width:${v}%"></span></span>
         <span class="bar-value">${v}</span>
       </div>`;
@@ -201,10 +253,14 @@ function cardHTML(p) {
 
 function tableRowHTML(p) {
   const cells = DIMS.map((dim) => `<td class="score-cell"><span class="chip ${badgeClass(Number(p.scores[dim.key] || 0))}">${Number(p.scores[dim.key] || 0)}</span></td>`).join("");
+  const sortByCell = SCORE_KEYS.has(state.sortKey)
+    ? `<td class="score-cell sortby-cell"><span class="chip ${badgeClass(Number(p.scores[state.sortKey] || 0))}">${Number(p.scores[state.sortKey] || 0)}</span></td>`
+    : "";
   return `
-    <tr>
+    <tr data-row="${esc(p.name)}">
       <td><button class="name-link" data-act="detail" data-name="${esc(p.name)}">${esc(p.name)}</button>${p.desc ? `<br/><small style="color:var(--muted)">${esc(p.desc)}</small>` : ""}</td>
       <td class="score-cell"><span class="chip ${badgeClass(p.composite)}">${p.composite}</span></td>
+      ${sortByCell}
       ${cells}
       <td>
         <div class="cell-actions">
@@ -294,6 +350,7 @@ function renderDetail() {
   $("cards").hidden = true;
   $("table-wrap").hidden = true;
   $("empty").hidden = true;
+  $("py-index").hidden = true;
   $("detail").hidden = false;
   if (!p) {
     $("detail-avatar").textContent = "?";
@@ -442,7 +499,7 @@ function bindEvents() {
 
   $("sort-select").addEventListener("change", (e) => {
     state.sortKey = e.target.value;
-    if (state.sortKey === "name") state.sortDir = "asc";
+    state.sortDir = defaultDir(state.sortKey);
     render();
   });
 

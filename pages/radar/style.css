@@ -342,6 +342,16 @@ body {
   min-width: 0;
 }
 
+.bar-row.sorted-first .bar-label {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.bar-row.sorted-first .bar-fill {
+  background: linear-gradient(90deg, var(--accent-2), var(--accent));
+  box-shadow: 0 0 6px rgba(91, 91, 214, 0.45);
+}
+
 .bar-label {
   width: 74px;
   color: var(--muted);
@@ -487,6 +497,58 @@ body {
 .cell-actions .btn {
   padding: 4px 10px;
   font-size: 12px;
+}
+
+.sortby-cell {
+  background: var(--accent-soft);
+}
+
+th#th-sortby {
+  color: var(--accent);
+}
+
+.py-index {
+  position: fixed;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  z-index: 20;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 6px 4px;
+  box-shadow: var(--shadow);
+}
+
+.py-item {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.7;
+  padding: 0 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.py-item:hover:not(:disabled) {
+  background: var(--accent);
+  color: #fff;
+}
+
+.py-item.off {
+  color: var(--muted);
+  opacity: 0.35;
+  cursor: default;
+}
+
+.py-item:disabled {
+  cursor: default;
 }
 
 .empty {
