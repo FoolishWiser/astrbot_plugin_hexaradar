@@ -105,8 +105,27 @@
 
     <div id="edit-modal" class="modal-mask" hidden>
       <div class="modal wide">
-        <h2 id="edit-title">编辑人员</h2>
-        <div class="edit-layout">
+        <h2 id="edit-title">人员详情</h2>
+        <div id="view-body" class="edit-layout" hidden>
+          <div class="edit-left">
+            <div id="view-radar" class="edit-radar"></div>
+            <div class="composite-box">综合 <span id="view-composite" class="composite-value">0</span> 分</div>
+          </div>
+          <div class="edit-right">
+            <div id="view-name" class="view-name"></div>
+            <div id="view-scores" class="detail-scores"></div>
+            <div class="detail-desc">
+              <h3>备注</h3>
+              <p id="view-desc-text">—</p>
+            </div>
+            <div class="modal-actions">
+              <div class="spacer"></div>
+              <button id="view-close" class="btn ghost">关闭</button>
+              <button id="view-edit" class="btn primary">编辑</button>
+            </div>
+          </div>
+        </div>
+        <div id="edit-body" class="edit-layout" hidden>
           <div class="edit-left">
             <div id="edit-radar" class="edit-radar"></div>
             <div class="composite-box">综合 <span id="edit-composite" class="composite-value">0</span> 分</div>
@@ -116,7 +135,8 @@
               <span>姓名</span>
               <input id="edit-name" type="text" placeholder="人员姓名" />
             </label>
-            <div id="edit-sliders" class="sliders"></div>            <label class="field">
+            <div id="edit-sliders" class="sliders"></div>
+            <label class="field">
               <span>备注</span>
               <input id="edit-desc" type="text" placeholder="备注 / 评价说明（可选）" />
             </label>

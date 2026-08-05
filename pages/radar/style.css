@@ -833,6 +833,12 @@ body {
   flex: 1;
 }
 
+.view-name {
+  font-size: 18px;
+  font-weight: 700;
+  word-break: break-all;
+}
+
 .edit-layout {
   display: flex;
   gap: 22px;

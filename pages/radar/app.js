@@ -19,6 +19,7 @@ const state = {
   sortDir: "desc",
   pyFilter: null,
   editing: null,
+  viewing: null,
 };
 
 const collator = new Intl.Collator("zh-Hans-CN", { sensitivity: "base" });
@@ -395,7 +396,35 @@ function renderDetail() {
   $("detail-desc-text").textContent = p.desc || "—";
 }
 
+function openView(person) {
+  state.viewing = person;
+  $("edit-title").textContent = `查看：${person.name}`;
+  $("view-radar").innerHTML = radarSVG(person.scores, 260);
+  $("view-composite").textContent = person.composite;
+  $("view-name").textContent = person.name;
+  const reasons = person.reasons || {};
+  $("view-scores").innerHTML = DIMS.map((dim) => {
+    const v = Number(person.scores[dim.key] || 0);
+    const reason = reasons[dim.key];
+    return `
+      <div class="detail-score-row">
+        <div class="detail-score-head">
+          <span class="detail-dim">${dim.label}</span>
+          <span class="chip ${badgeClass(v)}">${v}</span>
+        </div>
+        <span class="bar-track"><span class="bar-fill" style="width:${v}%"></span></span>
+        <p class="detail-reason">${reason ? esc(reason) : "—"}</p>
+      </div>`;
+  }).join("");
+  $("view-desc-text").textContent = person.desc || "—";
+  $("view-body").hidden = false;
+  $("edit-body").hidden = true;
+  $("edit-modal").hidden = false;
+}
+
 function openEdit(person) {
+  $("view-body").hidden = true;
+  $("edit-body").hidden = false;
   if (person) {
     state.editing = {
       name: person.name,
@@ -422,6 +451,7 @@ function openEdit(person) {
 function closeEdit() {
   $("edit-modal").hidden = true;
   state.editing = null;
+  state.viewing = null;
 }
 
 function buildSliders() {
@@ -541,7 +571,7 @@ function bindEvents() {
     const card = e.target.closest(".card");
     if (card) {
       const p = state.persons.find((x) => x.name === card.dataset.name);
-      if (p) openEdit(p);
+      if (p) openView(p);
     }
   });
 
@@ -567,6 +597,10 @@ function bindEvents() {
   $("edit-save").addEventListener("click", saveEdit);
   $("edit-cancel").addEventListener("click", closeEdit);
   $("edit-delete").addEventListener("click", deleteEditing);
+  $("view-edit").addEventListener("click", () => {
+    if (state.viewing) openEdit(state.viewing);
+  });
+  $("view-close").addEventListener("click", closeEdit);
   $("password-ok").addEventListener("click", unlock);
   $("password-cancel").addEventListener("click", () => showPasswordModal(false));
   $("password-input").addEventListener("keydown", (e) => {
