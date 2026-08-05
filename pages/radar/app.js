@@ -17,6 +17,7 @@ const state = {
   view: "cards",
   sortKey: "composite",
   sortDir: "desc",
+  pyFilter: null,
   editing: null,
 };
 
@@ -118,9 +119,14 @@ function radarSVG(scores, size) {
   return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">${s}</svg>`;
 }
 
+function filteredPersons() {
+  if (!state.pyFilter) return state.persons;
+  return state.persons.filter((p) => (p.py_initial || "#") === state.pyFilter);
+}
+
 function sortPersons() {
   const { sortKey, sortDir } = state;
-  const arr = [...state.persons];
+  const arr = [...filteredPersons()];
   arr.sort((a, b) => {
     let cmp;
     if (sortKey === "name") {
@@ -148,9 +154,11 @@ function renderMain() {
   const persons = sortPersons();
   const empty = $("empty");
   empty.hidden = persons.length > 0;
-  $("empty-text").textContent = state.query
-    ? `未找到与「${esc(state.query)}」匹配的人员`
-    : "暂无人员数据，点击「+ 新建人员」开始";
+  $("empty-text").textContent = state.pyFilter
+    ? `没有以「${esc(state.pyFilter)}」开头的人员`
+    : state.query
+      ? `未找到与「${esc(state.query)}」匹配的人员`
+      : "暂无人员数据，点击「+ 新建人员」开始";
 
   const cards = $("cards");
   const tableWrap = $("table-wrap");
@@ -158,50 +166,39 @@ function renderMain() {
   const isCards = state.view === "cards";
   cards.hidden = !isCards;
   tableWrap.hidden = isCards;
-  $("py-index").hidden = isCards || persons.length === 0;
+  $("py-index").hidden = isCards || (persons.length === 0 && !state.pyFilter);
 
   if (isCards) {
     cards.innerHTML = persons.map(cardHTML).join("");
-    $("py-index").innerHTML = "";
   } else {
     $("table-body").innerHTML = persons.map(tableRowHTML).join("");
     document.querySelectorAll("th[data-sort]").forEach((th) => {
       th.classList.toggle("sorted", th.dataset.sort === state.sortKey);
     });
-    const label = dimLabel(state.sortKey);
-    const thSortBy = $("th-sortby");
-    thSortBy.hidden = !label;
-    if (label) {
-      thSortBy.textContent = `${label} ${state.sortDir === "desc" ? "↓" : "↑"}`;
-      thSortBy.classList.add("sorted");
-    } else {
-      thSortBy.classList.remove("sorted");
-    }
-    renderPyIndex(persons);
+    renderPyIndex();
   }
 
   $("sort-dir").textContent = state.sortDir === "desc" ? "↓" : "↑";
 }
 
-function renderPyIndex(persons) {
-  const present = new Set(persons.map((p) => p.py_initial || "#"));
+function renderPyIndex() {
+  const present = new Set(state.persons.map((p) => p.py_initial || "#"));
   const letters = [];
   if (present.has("#")) letters.push("#");
   for (let c = 65; c <= 90; c++) letters.push(String.fromCharCode(c));
-  const nav = $("py-index");
-  nav.innerHTML = letters.map((l) => {
+  $("py-letters").innerHTML = letters.map((l) => {
     const on = present.has(l);
-    return `<button class="py-item ${on ? "on" : "off"}" data-letter="${l}" ${on ? "" : "disabled"}>${l}</button>`;
+    const active = state.pyFilter === l;
+    return `<button class="py-item ${on ? "on" : "off"} ${active ? "active" : ""}" data-letter="${l}" ${on ? "" : "disabled"}>${l}</button>`;
   }).join("");
-  nav.querySelectorAll(".py-item").forEach((btn) => {
+  $("py-letters").querySelectorAll(".py-item").forEach((btn) => {
     btn.addEventListener("click", () => {
       const letter = btn.dataset.letter;
-      const idx = persons.findIndex((p) => (p.py_initial || "#") >= letter);
-      if (idx === -1) return;
-      const row = $("table-body").querySelector(`tr[data-row="${esc(persons[idx].name)}"]`);
-      if (row) row.scrollIntoView({ block: "start", behavior: "smooth" });
+      state.pyFilter = state.pyFilter === letter ? null : letter;
+      render();
     });
   });
+  $("py-reset").hidden = !state.pyFilter;
 }
 
 function render() {
@@ -230,11 +227,14 @@ function cardHTML(p) {
     const v = Number(p.scores[dim.key] || 0);
     const isSorted = dim.key === state.sortKey;
     const arrow = isSorted ? (state.sortDir === "desc" ? " ↓" : " ↑") : "";
+    const valueHtml = isSorted
+      ? `<span class="chip ${badgeClass(v)} bar-chip">${v}</span>`
+      : `<span class="bar-value">${v}</span>`;
     return `
       <div class="bar-row ${isSorted ? "sorted-first" : ""}">
         <span class="bar-label">${dim.label}${arrow}</span>
         <span class="bar-track"><span class="bar-fill" style="width:${v}%"></span></span>
-        <span class="bar-value">${v}</span>
+        ${valueHtml}
       </div>`;
   }).join("");
   return `
@@ -253,14 +253,20 @@ function cardHTML(p) {
 
 function tableRowHTML(p) {
   const cells = DIMS.map((dim) => `<td class="score-cell"><span class="chip ${badgeClass(Number(p.scores[dim.key] || 0))}">${Number(p.scores[dim.key] || 0)}</span></td>`).join("");
-  const sortByCell = SCORE_KEYS.has(state.sortKey)
-    ? `<td class="score-cell sortby-cell"><span class="chip ${badgeClass(Number(p.scores[state.sortKey] || 0))}">${Number(p.scores[state.sortKey] || 0)}</span></td>`
+  const dimBadge = SCORE_KEYS.has(state.sortKey)
+    ? `<span class="badge sub ${badgeClass(Number(p.scores[state.sortKey] || 0))}">${dimLabel(state.sortKey)} ${state.sortDir === "desc" ? "↓" : "↑"} ${Number(p.scores[state.sortKey] || 0)}</span>`
     : "";
+  const compBadge = `<span class="badge ${badgeClass(p.composite)}">${p.composite}</span>`;
   return `
     <tr data-row="${esc(p.name)}">
-      <td><button class="name-link" data-act="detail" data-name="${esc(p.name)}">${esc(p.name)}</button>${p.desc ? `<br/><small style="color:var(--muted)">${esc(p.desc)}</small>` : ""}</td>
-      <td class="score-cell"><span class="chip ${badgeClass(p.composite)}">${p.composite}</span></td>
-      ${sortByCell}
+      <td>
+        <div class="name-cell">
+          <button class="name-link" data-act="detail" data-name="${esc(p.name)}">${esc(p.name)}</button>
+          ${compBadge}
+          ${dimBadge}
+        </div>
+        ${p.desc ? `<small style="color:var(--muted)">${esc(p.desc)}</small>` : ""}
+      </td>
       ${cells}
       <td>
         <div class="cell-actions">
@@ -586,8 +592,12 @@ function bindEvents() {
     updateEditPreview();
   });
 
-  $("detail-back").addEventListener("click", goBack);
-  $("detail-edit").addEventListener("click", () => {
+  $("py-reset").addEventListener("click", () => {
+    state.pyFilter = null;
+    render();
+  });
+
+  $("detail-back").addEventListener("click", goBack);  $("detail-edit").addEventListener("click", () => {
     const p = state.persons.find((x) => x.name === currentRoute());
     if (p) openEdit(p);
   });

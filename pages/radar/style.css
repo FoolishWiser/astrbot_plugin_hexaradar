@@ -320,6 +320,22 @@ body {
   color: var(--danger);
 }
 
+.badge.sub {
+  background: transparent;
+  border: 1px dashed currentColor;
+  font-size: 11px;
+  padding: 2px 8px;
+  font-weight: 600;
+}
+
+.name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
 .card-mini {
   display: flex;
   justify-content: center;
@@ -499,14 +515,6 @@ body {
   font-size: 12px;
 }
 
-.sortby-cell {
-  background: var(--accent-soft);
-}
-
-th#th-sortby {
-  color: var(--accent);
-}
-
 .py-index {
   position: fixed;
   right: 8px;
@@ -521,6 +529,12 @@ th#th-sortby {
   border-radius: 12px;
   padding: 6px 4px;
   box-shadow: var(--shadow);
+}
+
+.py-letters {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .py-item {
@@ -541,6 +555,11 @@ th#th-sortby {
   color: #fff;
 }
 
+.py-item.active {
+  background: var(--accent);
+  color: #fff;
+}
+
 .py-item.off {
   color: var(--muted);
   opacity: 0.35;
@@ -549,6 +568,20 @@ th#th-sortby {
 
 .py-item:disabled {
   cursor: default;
+}
+
+.py-reset {
+  margin-top: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 8px;
+  width: 100%;
+}
+
+.chip.bar-chip {
+  min-width: 32px;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .empty {
