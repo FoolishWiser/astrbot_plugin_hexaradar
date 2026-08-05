@@ -435,20 +435,16 @@ body {
 }
 
 .table td:nth-child(1) {
-  width: 28%;
+  width: auto;
 }
 
-.table td:nth-child(2),
-.table td:nth-child(3),
-.table td:nth-child(4),
-.table td:nth-child(5),
-.table td:nth-child(6),
-.table td:nth-child(7) {
-  width: 9%;
+.table td:nth-child(2) {
+  width: 150px;
 }
 
-.table td:nth-child(8) {
-  width: 18%;
+.table td:last-child {
+  vertical-align: top;
+  padding-top: 8px;
 }
 
 .table thead tr {

@@ -254,7 +254,6 @@ function cardHTML(p) {
 }
 
 function tableRowHTML(p) {
-  const cells = DIMS.map((dim) => `<td class="score-cell"><span class="chip ${badgeClass(Number(p.scores[dim.key] || 0))}">${Number(p.scores[dim.key] || 0)}</span></td>`).join("");
   const dimBadge = SCORE_KEYS.has(state.sortKey)
     ? `<span class="badge sub ${badgeClass(Number(p.scores[state.sortKey] || 0))}">${dimLabel(state.sortKey)} ${state.sortDir === "desc" ? "↓" : "↑"} ${Number(p.scores[state.sortKey] || 0)}</span>`
     : "";
@@ -269,7 +268,6 @@ function tableRowHTML(p) {
         </div>
         ${p.desc ? `<small class="row-desc">${esc(p.desc)}</small>` : ""}
       </td>
-      ${cells}
       <td>
         <div class="cell-actions">
           <button class="btn ghost" data-act="edit" data-name="${esc(p.name)}">编辑</button>
