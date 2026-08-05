@@ -243,6 +243,24 @@ function showPasswordModal(show, withError = false) {
   if (show && !withError) $("password-input").focus();
 }
 
+let confirmResolve = null;
+
+function confirmDialog(message) {
+  return new Promise((resolve) => {
+    $("confirm-message").textContent = message;
+    $("confirm-modal").hidden = false;
+    confirmResolve = resolve;
+  });
+}
+
+function settleConfirm(value) {
+  $("confirm-modal").hidden = true;
+  if (confirmResolve) {
+    confirmResolve(value);
+    confirmResolve = null;
+  }
+}
+
 async function unlock() {
   const value = $("password-input").value;
   if (!value) return;
@@ -387,7 +405,8 @@ async function saveEdit() {
 
 async function deleteEditing() {
   const name = state.editing.name;
-  if (!confirm(`确定删除「${name}」的六边形数据吗？此操作不可恢复。`)) return;
+  const ok = await confirmDialog(`确定删除「${name}」的六边形数据吗？此操作不可恢复。`);
+  if (!ok) return;
   try {
     await bridge.apiPost("person/delete", authBody({ name }));
     toast("已删除");
@@ -400,7 +419,8 @@ async function deleteEditing() {
 }
 
 async function deletePerson(name) {
-  if (!confirm(`确定删除「${name}」的六边形数据吗？此操作不可恢复。`)) return;
+  const ok = await confirmDialog(`确定删除「${name}」的六边形数据吗？此操作不可恢复。`);
+  if (!ok) return;
   try {
     await bridge.apiPost("person/delete", authBody({ name }));
     toast("已删除");
@@ -489,6 +509,9 @@ function bindEvents() {
     if (e.key === "Enter") unlock();
   });
 
+  $("confirm-ok").addEventListener("click", () => settleConfirm(true));
+  $("confirm-cancel").addEventListener("click", () => settleConfirm(false));
+
   $("edit-sliders").addEventListener("input", (e) => {
     const block = e.target.closest(".slider-block");
     if (!block) return;
@@ -528,6 +551,7 @@ function bindEvents() {
     mask.addEventListener("click", (e) => {
       if (e.target === mask) {
         if (mask.id === "edit-modal") closeEdit();
+        else if (mask.id === "confirm-modal") settleConfirm(false);
         else showPasswordModal(false);
       }
     });
