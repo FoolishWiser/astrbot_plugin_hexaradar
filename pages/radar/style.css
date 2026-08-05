@@ -769,6 +769,8 @@ body {
   border-radius: var(--radius);
   padding: 24px;
   width: min(92vw, 420px);
+  max-height: min(92vh, 760px);
+  overflow-y: auto;
   box-shadow: var(--shadow-lg);
   animation: modal-in 0.18s ease;
 }
