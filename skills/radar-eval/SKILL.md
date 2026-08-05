@@ -33,6 +33,8 @@ description: 六边形能力雷达（astrbot_plugin_hexaradar）使用口径。�
 - `search_radar_persons(query)`：按关键词模糊搜索，支持姓名、全拼、拼音首字母、同音匹配。
 - `get_radar_ranking(sort_by?, limit?)`：获取排行。sort_by 默认 composite（综合分），
   可填 social_composite（社会参考分）或 learning/psychology/social/judgment/self_awareness/direction 按单项排行。
+- `get_social_score(name?, limit?)`：查询社会参考分（25岁成熟基准）。返回人员年龄、各维度年龄系数、
+  社会参考综合分，并与个人基准综合分对比；未填年龄的人员无社会参考分。不传 name 返回全部已填年龄人员的排行。
 
 ## 社会参考分（25 岁成熟基准）
 

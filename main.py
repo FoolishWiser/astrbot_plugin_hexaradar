@@ -20,6 +20,7 @@ from .tools.radar_tools import (
     RadarRankingTool,
     RadarSearchTool,
     RadarSetTool,
+    RadarSocialTool,
 )
 
 PLUGIN_NAME = "astrbot_plugin_hexaradar"
@@ -55,6 +56,7 @@ class Main(Star):
             RadarSetTool(store=self.store),
             RadarSearchTool(store=self.store),
             RadarRankingTool(store=self.store),
+            RadarSocialTool(store=self.store),
         )
         logger.info("astrbot_plugin_hexaradar 已加载")
 

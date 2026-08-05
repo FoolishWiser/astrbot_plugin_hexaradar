@@ -221,3 +221,61 @@ class RadarRankingTool(FunctionTool):
             return _text({"ok": True, "count": len(persons), "sort_by": sort_by, "persons": persons})
         except Exception as e:  # noqa: BLE001
             return _text({"ok": False, "error": str(e)})
+
+
+@dataclass
+class RadarSocialTool(FunctionTool):
+    """查询社会参考分（25 岁成熟基准，只读）。"""
+
+    store: RadarStore | None = None
+
+    name: str = "get_social_score"
+    description: str = (
+        "查询社会参考分（25岁成熟基准）。返回人员年龄、各维度年龄系数、社会参考综合分，"
+        "并与个人基准综合分对比。未填年龄的人员无社会参考分。"
+        "不传 name 时返回所有已填年龄人员的排行（按社会参考分降序）。"
+    )
+    parameters: dict = field(
+        default_factory=lambda: {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "人员姓名（可选）。不传则返回全部已填年龄人员的排行。",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "排行人数上限，默认 10",
+                },
+            },
+            "required": [],
+        }
+    )
+
+    @staticmethod
+    def _social_of(p: dict) -> dict:
+        from ..store import _social_coefficients, compute_social
+
+        age = p.get("age")
+        social = compute_social(p["scores"], age) if age is not None else None
+        return {
+            "name": p["name"],
+            "age": age,
+            "coefficients": _social_coefficients(int(age)) if age is not None else None,
+            "baseline_composite": p["composite"],
+            "social_composite": social,
+        }
+
+    async def run(self, event: AstrMessageEvent, name: str = "", limit: int = 10):
+        try:
+            if name and name.strip():
+                p = await self.store.get_person(name.strip())
+                if not p:
+                    return _text({"ok": False, "error": f"未找到人员: {name}"})
+                return _text({"ok": True, "person": self._social_of(p)})
+            persons = await self.store.list_persons()
+            out = [self._social_of(p) for p in persons if p.get("age") is not None]
+            out.sort(key=lambda x: x["social_composite"] or 0, reverse=True)
+            return _text({"ok": True, "count": len(out), "persons": out[: max(1, min(limit, 100))]})
+        except Exception as e:  # noqa: BLE001
+            return _text({"ok": False, "error": str(e)})
