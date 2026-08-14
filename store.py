@@ -114,30 +114,29 @@ def _scar_beta(age: int) -> float:
 
 
 def _scar_uref(age: int) -> float:
-    """归一化基准 U_ref(x)。"""
+    """归一化基准 U_ref(x)：x≤10 为 40；10<x<16 线性至 85.73；x≥16 为 85.73。"""
     if age <= 10:
         return 40.0
-    if age <= 16:
-        return 40.0 + 40.0 * (age - 10) / 6
-    if age <= 25:
-        return 80.0 + 5.73 * (age - 16) / 9
+    if age < 16:
+        return 40.0 + 45.73 * (age - 10) / 6
     return 85.73
 
 
 def compute_scarcity(scores: Dict[str, float], age: Optional[int]) -> Optional[float]:
-    """稀缺值 = min(100, U_raw/U_ref × 100)，百分制。无年龄返回 None。"""
+    """稀缺值 = min(100, U_raw/U_ref × 100)，百分制。无年龄返回 None。
+
+    全面性映射 φ = (cosθ+1)/2 将 [-1,1] 映射到 [0,1]，总偏差为负时不再直接归零。
+    """
     if age is None:
         return None
     d = [float(scores.get(k, 0)) - SCAR_MEAN for k in SOCIAL_WEIGHTS]
     L = sum(x * x for x in d) ** 0.5
     if L == 0:
-        cos_theta = 1.0
-    else:
-        cos_theta = sum(d) / (6 ** 0.5 * L)
-    if cos_theta <= 0:
         return 0.0
+    cos_theta = sum(d) / (6 ** 0.5 * L)
+    phi = (cos_theta + 1.0) / 2.0
     beta = _scar_beta(int(age))
-    u_raw = L * (cos_theta ** beta)
+    u_raw = L * (phi ** beta)
     uref = _scar_uref(int(age))
     if uref <= 0:
         return None

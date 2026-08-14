@@ -2,7 +2,7 @@ name: astrbot_plugin_hexaradar
 display_name: 六边形能力雷达
 desc: 为人员制定并展示六维能力六边形雷达图（学习能力、心理承受力、社交能力、判断决策、自我认知、长期方向感），支持 WebUI 双视图展示、拼音/同音搜索、AI 读写。
 short_desc: 六维能力六边形雷达图，WebUI + AI 双向读写。
-version: v3.1.0
+version: v3.1.1
 author: FoolishWiser
 repo: https://github.com/FoolishWiser/astrbot_plugin_hexaradar
 astrbot_version: ">=4.17.0"
