@@ -153,19 +153,34 @@ function defaultDir(key) {
   return key === "name" ? "asc" : "desc";
 }
 
-function socialBadge(p) {
-  if (!state.socialEnabled || p.social_composite == null) return "";
-  return `<span class="badge social" title="社会参考分（25岁成熟基准）">社 ${p.social_composite}</span>`;
-}
-
-function scarcityBadge(p) {
-  if (!state.scarcityEnabled || p.scarcity == null) return "";
-  return `<span class="badge scar" title="稀缺值（独特性算法）">稀 ${p.scarcity}</span>`;
-}
-
 function dimLabel(key) {
   const dim = DIMS.find((d) => d.key === key);
   return dim ? dim.label : null;
+}
+
+function badgeBarHTML(p) {
+  const items = [
+    { key: "composite", value: p.composite, cls: badgeClass(p.composite), label: "个人基准分" },
+  ];
+  if (state.socialEnabled && p.social_composite != null) {
+    items.push({ key: "social", value: p.social_composite, cls: "social", label: "社会参考分（25岁成熟基准）" });
+  }
+  if (state.scarcityEnabled && p.scarcity != null) {
+    items.push({ key: "scar", value: p.scarcity, cls: "scar", label: "稀缺值（独特性算法）" });
+  }
+  if (!items.length) return "";
+  if (state.view !== "cards" || items.length === 3) {
+    const pills = items.map((it) => {
+      const cls = it.key === "composite" ? it.cls : it.cls;
+      return `<span class="badge ${cls}" title="${it.label}">${it.value}</span>`;
+    }).join("");
+    return `<div class="badge-bar pills">${pills}</div>`;
+  }
+  const rects = items.map((it) => {
+    const cls = it.key === "composite" ? "base" : it.cls;
+    return `<span class="score-rect ${cls}${items.length === 1 ? " solo" : ""}" title="${it.label}">${it.value}</span>`;
+  }).join("");
+  return `<div class="badge-bar rects">${rects}</div>`;
 }
 
 function renderMain() {
@@ -246,11 +261,6 @@ function render() {
   }
 }
 
-function subBadgesHTML(p, cls) {
-  const html = socialBadge(p) + scarcityBadge(p);
-  return html ? `<div class="${cls}">${html}</div>` : "";
-}
-
 function cardHTML(p) {
   const ordered = [...DIMS];
   if (SCORE_KEYS.has(state.sortKey)) {
@@ -282,9 +292,8 @@ function cardHTML(p) {
           <div class="card-name" data-act="detail" data-name="${esc(p.name)}">${esc(p.name)}</div>
           ${p.desc ? `<div class="card-desc">${esc(p.desc)}</div>` : ""}
         </div>
-        <span class="badge ${badgeClass(p.composite)}">${p.composite}</span>
       </div>
-      ${subBadgesHTML(p, "card-badges")}
+      ${badgeBarHTML(p)}
       <div class="card-mini"><div class="mini-bars">${bars}</div></div>
     </div>`;
 }
@@ -293,12 +302,9 @@ function radarCardHTML(p) {
   return `
     <div class="radar-card" data-name="${esc(p.name)}">
       <div class="radar-chart">${radarSVG(p.scores, 190)}</div>
+      ${badgeBarHTML(p)}
       <div class="radar-card-foot">
         <button class="name-link" data-act="detail" data-name="${esc(p.name)}">${esc(p.name)}</button>
-        <div class="radar-badges">
-          <span class="badge ${badgeClass(p.composite)}">${p.composite}</span>
-          ${subBadgesHTML(p, "radar-badges-sub")}
-        </div>
       </div>
     </div>`;
 }
@@ -307,20 +313,18 @@ function tableRowHTML(p) {
   const dimBadge = SCORE_KEYS.has(state.sortKey)
     ? `<span class="badge sub ${badgeClass(Number(p.scores[state.sortKey] || 0))}">${dimLabel(state.sortKey)} ${state.sortDir === "desc" ? "↓" : "↑"} ${Number(p.scores[state.sortKey] || 0)}</span>`
     : "";
-  const compBadge = `<span class="badge ${badgeClass(p.composite)}">${p.composite}</span>`;
   return `
     <tr data-row="${esc(p.name)}">
       <td>
         <div class="name-cell">
           <button class="name-link" data-act="detail" data-name="${esc(p.name)}">${esc(p.name)}</button>
-          ${compBadge}
           ${dimBadge}
           <div class="cell-actions">
             <button class="icon-btn" data-act="edit" data-name="${esc(p.name)}" title="编辑">✎</button>
             <button class="icon-btn danger" data-act="del" data-name="${esc(p.name)}" title="删除">🗑</button>
           </div>
         </div>
-        ${subBadgesHTML(p, "row-badges")}
+        ${badgeBarHTML(p)}
         ${p.desc ? `<div class="row-desc">${esc(p.desc)}</div>` : ""}
       </td>
     </tr>`;
