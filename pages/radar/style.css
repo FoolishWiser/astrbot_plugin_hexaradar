@@ -414,6 +414,19 @@ body {
   word-break: break-all;
 }
 
+.card-badges {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: -4px;
+}
+
+.row-badges {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
 .badge {
   margin-left: auto;
   padding: 4px 10px;
@@ -558,8 +571,15 @@ body {
 
 .radar-badges {
   display: flex;
-  gap: 6px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
   flex-shrink: 0;
+}
+
+.radar-badges-sub {
+  display: flex;
+  gap: 6px;
 }
 
 .social-note {

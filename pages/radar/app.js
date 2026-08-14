@@ -246,6 +246,11 @@ function render() {
   }
 }
 
+function subBadgesHTML(p, cls) {
+  const html = socialBadge(p) + scarcityBadge(p);
+  return html ? `<div class="${cls}">${html}</div>` : "";
+}
+
 function cardHTML(p) {
   const ordered = [...DIMS];
   if (SCORE_KEYS.has(state.sortKey)) {
@@ -278,8 +283,8 @@ function cardHTML(p) {
           ${p.desc ? `<div class="card-desc">${esc(p.desc)}</div>` : ""}
         </div>
         <span class="badge ${badgeClass(p.composite)}">${p.composite}</span>
-        ${socialBadge(p)}${scarcityBadge(p)}
       </div>
+      ${subBadgesHTML(p, "card-badges")}
       <div class="card-mini"><div class="mini-bars">${bars}</div></div>
     </div>`;
 }
@@ -292,7 +297,7 @@ function radarCardHTML(p) {
         <button class="name-link" data-act="detail" data-name="${esc(p.name)}">${esc(p.name)}</button>
         <div class="radar-badges">
           <span class="badge ${badgeClass(p.composite)}">${p.composite}</span>
-          ${socialBadge(p)}${scarcityBadge(p)}
+          ${subBadgesHTML(p, "radar-badges-sub")}
         </div>
       </div>
     </div>`;
@@ -309,13 +314,13 @@ function tableRowHTML(p) {
         <div class="name-cell">
           <button class="name-link" data-act="detail" data-name="${esc(p.name)}">${esc(p.name)}</button>
           ${compBadge}
-          ${socialBadge(p)}${scarcityBadge(p)}
           ${dimBadge}
           <div class="cell-actions">
             <button class="icon-btn" data-act="edit" data-name="${esc(p.name)}" title="编辑">✎</button>
             <button class="icon-btn danger" data-act="del" data-name="${esc(p.name)}" title="删除">🗑</button>
           </div>
         </div>
+        ${subBadgesHTML(p, "row-badges")}
         ${p.desc ? `<div class="row-desc">${esc(p.desc)}</div>` : ""}
       </td>
     </tr>`;
