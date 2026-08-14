@@ -418,6 +418,8 @@ class Main(Star):
                 "判断": "judgment",
                 "认知": "self_awareness",
                 "方向": "direction",
+                "稀缺": "scarcity",
+                "社会": "social_composite",
             }
             sort_by = dim_map.get(arg2.strip(), "composite")
             try:
@@ -429,9 +431,18 @@ class Main(Star):
                 yield event.plain_result("暂无人员数据")
                 return
             label = DIMENSION_LABELS.get(sort_by, "综合分")
+            if sort_by == "scarcity":
+                label = "稀缺值"
+            elif sort_by == "social_composite":
+                label = "社会参考分"
             lines = [f"【六边形能力雷达 · {label}排行】"]
             for i, p in enumerate(persons, 1):
-                value = p["composite"] if sort_by == "composite" else p["scores"].get(sort_by, 0)
+                if sort_by == "composite":
+                    value = p["composite"]
+                elif sort_by in ("scarcity", "social_composite"):
+                    value = p[sort_by] if p[sort_by] is not None else "—"
+                else:
+                    value = p["scores"].get(sort_by, 0)
                 lines.append(f"{i}. {p['name']}  {label} {value} 分")
             yield event.plain_result("\n".join(lines))
             return
