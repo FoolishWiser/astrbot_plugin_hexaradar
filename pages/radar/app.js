@@ -272,7 +272,7 @@ function cardHTML(p) {
           ${p.desc ? `<div class="card-desc">${esc(p.desc)}</div>` : ""}
         </div>
         <span class="badge ${badgeClass(p.composite)}">${p.composite}</span>
-        ${socialBadge(p)}
+        ${socialBadge(p)}${scarcityBadge(p)}
       </div>
       <div class="card-mini"><div class="mini-bars">${bars}</div></div>
     </div>`;
@@ -286,7 +286,7 @@ function radarCardHTML(p) {
         <button class="name-link" data-act="detail" data-name="${esc(p.name)}">${esc(p.name)}</button>
         <div class="radar-badges">
           <span class="badge ${badgeClass(p.composite)}">${p.composite}</span>
-          ${socialBadge(p)}
+          ${socialBadge(p)}${scarcityBadge(p)}
         </div>
       </div>
     </div>`;
@@ -303,7 +303,7 @@ function tableRowHTML(p) {
         <div class="name-cell">
           <button class="name-link" data-act="detail" data-name="${esc(p.name)}">${esc(p.name)}</button>
           ${compBadge}
-          ${socialBadge(p)}
+          ${socialBadge(p)}${scarcityBadge(p)}
           ${dimBadge}
           <div class="cell-actions">
             <button class="icon-btn" data-act="edit" data-name="${esc(p.name)}" title="编辑">✎</button>
@@ -396,15 +396,34 @@ function socialNoteHTML(p) {
   return `年龄 ${p.age} · 年龄系数 ${parts}`;
 }
 
+function scarNoteHTML(p) {
+  if (!state.scarcityEnabled || p.scarcity == null) return "";
+  const params = p.scarcity_params || {};
+  return `年龄 ${p.age} · β ${params.beta ?? "—"} · U_ref ${params.uref ?? "—"}`;
+}
+
 function applyScoreMode(p) {
   const social = state.socialEnabled && p.social_composite != null && p.age != null;
-  $("detail-mode").hidden = !social;
-  const isSocial = state.scoreMode === "social" && social;
-  $("mode-base").classList.toggle("active", !isSocial);
-  $("mode-social").classList.toggle("active", isSocial);
-  $("detail-composite").textContent = isSocial ? p.social_composite : p.composite;
-  $("detail-social-note").hidden = !isSocial;
-  if (isSocial) $("detail-social-note").textContent = socialNoteHTML(p);
+  const scar = state.scarcityEnabled && p.scarcity != null && p.age != null;
+  $("detail-mode").hidden = !social && !scar;
+  let mode = state.scoreMode;
+  if (mode === "social" && !social) mode = "base";
+  if (mode === "scar" && !scar) mode = "base";
+  $("mode-base").classList.toggle("active", mode === "base");
+  $("mode-social").classList.toggle("active", mode === "social");
+  $("mode-scar").classList.toggle("active", mode === "scar");
+  if (mode === "social") {
+    $("detail-composite").textContent = p.social_composite;
+    $("detail-social-note").textContent = socialNoteHTML(p);
+    $("detail-social-note").hidden = false;
+  } else if (mode === "scar") {
+    $("detail-composite").textContent = p.scarcity;
+    $("detail-social-note").textContent = scarNoteHTML(p);
+    $("detail-social-note").hidden = false;
+  } else {
+    $("detail-composite").textContent = p.composite;
+    $("detail-social-note").hidden = true;
+  }
 }
 
 function renderDetail() {
@@ -479,13 +498,26 @@ function openView(person) {
   }).join("");
   $("view-desc-text").textContent = person.desc || "—";
   const social = state.socialEnabled && person.social_composite != null && person.age != null;
-  $("view-mode").hidden = !social;
-  const isSocial = state.scoreMode === "social" && social;
-  $("v-mode-base").classList.toggle("active", !isSocial);
-  $("v-mode-social").classList.toggle("active", isSocial);
-  $("view-composite").textContent = isSocial ? person.social_composite : person.composite;
-  $("view-social-note").hidden = !isSocial;
-  if (isSocial) $("view-social-note").textContent = socialNoteHTML(person);
+  const scar = state.scarcityEnabled && person.scarcity != null && person.age != null;
+  $("view-mode").hidden = !social && !scar;
+  let mode = state.scoreMode;
+  if (mode === "social" && !social) mode = "base";
+  if (mode === "scar" && !scar) mode = "base";
+  $("v-mode-base").classList.toggle("active", mode === "base");
+  $("v-mode-social").classList.toggle("active", mode === "social");
+  $("v-mode-scar").classList.toggle("active", mode === "scar");
+  if (mode === "social") {
+    $("view-composite").textContent = person.social_composite;
+    $("view-social-note").textContent = socialNoteHTML(person);
+    $("view-social-note").hidden = false;
+  } else if (mode === "scar") {
+    $("view-composite").textContent = person.scarcity;
+    $("view-social-note").textContent = scarNoteHTML(person);
+    $("view-social-note").hidden = false;
+  } else {
+    $("view-composite").textContent = person.composite;
+    $("view-social-note").hidden = true;
+  }
   $("view-body").hidden = false;
   $("edit-body").hidden = true;
   $("edit-modal").hidden = false;
@@ -605,6 +637,48 @@ async function deletePerson(name) {
   }
 }
 
+function fmtTime(ts) {
+  const d = new Date(ts * 1000);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+async function openHistoryModal() {
+  const name = currentRoute();
+  if (!name) return;
+  $("history-title").textContent = `更新记录 · ${name}`;
+  $("history-list").innerHTML = `<p class="hint">加载中…</p>`;
+  $("history-modal").hidden = false;
+  $("history-modal").querySelector(".modal").scrollTop = 0;
+  try {
+    const data = await bridge.apiGet("person/history", authParams({ name }));
+    const history = data.history || [];
+    if (!history.length) {
+      $("history-list").innerHTML = `<p class="hint">暂无更新记录</p>`;
+      return;
+    }
+    $("history-list").innerHTML = history.map((entry) => {
+      const changes = (entry.changes || []).map((c) => {
+        const arrow = `${c.from} → ${c.to}`;
+        return `<div class="history-change">· ${esc(c.label)}  ${esc(arrow)}</div>`;
+      }).join("");
+      const src = entry.source === "ai"
+        ? `<span class="chip mid">AI</span>`
+        : `<span class="chip high">WebUI</span>`;
+      return `
+        <div class="history-entry">
+          <div class="history-head">
+            <span class="history-time">${fmtTime(entry.ts)}</span>
+            ${src}
+          </div>
+          ${changes}
+        </div>`;
+    }).join("");
+  } catch (e) {
+    $("history-list").innerHTML = `<p class="error">加载失败：${esc(e.message)}</p>`;
+  }
+}
+
 function bindEvents() {
   let timer = null;
   $("search").addEventListener("input", (e) => {
@@ -683,6 +757,10 @@ function bindEvents() {
     state.scoreMode = "social";
     renderDetail();
   });
+  $("mode-scar").addEventListener("click", () => {
+    state.scoreMode = "scar";
+    renderDetail();
+  });
   $("v-mode-base").addEventListener("click", () => {
     state.scoreMode = "base";
     if (state.viewing) openView(state.viewing);
@@ -690,6 +768,15 @@ function bindEvents() {
   $("v-mode-social").addEventListener("click", () => {
     state.scoreMode = "social";
     if (state.viewing) openView(state.viewing);
+  });
+  $("v-mode-scar").addEventListener("click", () => {
+    state.scoreMode = "scar";
+    if (state.viewing) openView(state.viewing);
+  });
+
+  $("detail-history").addEventListener("click", openHistoryModal);
+  $("history-close").addEventListener("click", () => {
+    $("history-modal").hidden = true;
   });
 
   $("btn-add").addEventListener("click", () => openEdit(null));
@@ -760,6 +847,7 @@ function bindEvents() {
       if (e.target === mask) {
         if (mask.id === "edit-modal") closeEdit();
         else if (mask.id === "confirm-modal") settleConfirm(false);
+        else if (mask.id === "history-modal") $("history-modal").hidden = true;
         else showPasswordModal(false);
       }
     });

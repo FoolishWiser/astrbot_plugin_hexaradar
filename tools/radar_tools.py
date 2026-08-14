@@ -279,3 +279,61 @@ class RadarSocialTool(FunctionTool):
             return _text({"ok": True, "count": len(out), "persons": out[: max(1, min(limit, 100))]})
         except Exception as e:  # noqa: BLE001
             return _text({"ok": False, "error": str(e)})
+
+
+@dataclass
+class RadarScarcityTool(FunctionTool):
+    """查询稀缺值（独特性算法，只读）。"""
+
+    store: RadarStore | None = None
+
+    name: str = "get_scarcity_score"
+    description: str = (
+        "查询稀缺值（独特性/罕见程度，0-100）。以同龄人平均 50 为基准，衡量能力组合的罕见程度："
+        "低龄单项突出即独特，成年后需全面优秀。返回年龄、β/U_ref 参数与稀缺值，并与个人基准综合分对比。"
+        "未填年龄的人员无稀缺值。不传 name 时返回全部已填年龄人员的排行（按稀缺值降序）。"
+    )
+    parameters: dict = field(
+        default_factory=lambda: {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "人员姓名（可选）。不传则返回全部已填年龄人员的排行。",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "排行人数上限，默认 10",
+                },
+            },
+            "required": [],
+        }
+    )
+
+    @staticmethod
+    def _scar_of(p: dict) -> dict:
+        from ..store import _scar_beta, _scar_uref, compute_scarcity
+
+        age = p.get("age")
+        scar = compute_scarcity(p["scores"], age) if age is not None else None
+        return {
+            "name": p["name"],
+            "age": age,
+            "params": {"beta": round(_scar_beta(int(age)), 4), "uref": round(_scar_uref(int(age)), 4)} if age is not None else None,
+            "baseline_composite": p["composite"],
+            "scarcity": scar,
+        }
+
+    async def run(self, event: AstrMessageEvent, name: str = "", limit: int = 10):
+        try:
+            if name and name.strip():
+                p = await self.store.get_person(name.strip())
+                if not p:
+                    return _text({"ok": False, "error": f"未找到人员: {name}"})
+                return _text({"ok": True, "person": self._scar_of(p)})
+            persons = await self.store.list_persons()
+            out = [self._scar_of(p) for p in persons if p.get("age") is not None]
+            out.sort(key=lambda x: x["scarcity"] or 0, reverse=True)
+            return _text({"ok": True, "count": len(out), "persons": out[: max(1, min(limit, 100))]})
+        except Exception as e:  # noqa: BLE001
+            return _text({"ok": False, "error": str(e)})

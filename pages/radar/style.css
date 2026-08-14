@@ -327,6 +327,50 @@ body {
   color: var(--teal);
 }
 
+.badge.scar {
+  background: rgba(224, 123, 57, 0.14);
+  color: #e07b39;
+}
+
+[data-theme="dark"] .badge.scar {
+  color: #f0a060;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.history-entry {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--bg);
+}
+
+.history-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.history-time {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.history-change {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+  word-break: break-all;
+}
+
 .badge.sub {
   background: transparent;
   border: 1px dashed currentColor;

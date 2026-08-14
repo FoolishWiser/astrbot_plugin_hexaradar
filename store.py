@@ -97,6 +97,53 @@ def compute_social(scores: Dict[str, float], age: Optional[int]) -> Optional[flo
     return round(num / den, 1)
 
 
+# ---- 稀缺值（独特性）算法 ----
+
+SCAR_MEAN = 50.0  # 同龄人平均分基准
+
+
+def _scar_beta(age: int) -> float:
+    """全面性权重参数 β(x)。"""
+    if age <= 10:
+        return 0.2
+    if age <= 25:
+        return 0.2 + 0.8 * (age - 10) / 15
+    if age <= 40:
+        return 1.0 + 0.5 * (age - 25) / 15
+    return 1.5
+
+
+def _scar_uref(age: int) -> float:
+    """归一化基准 U_ref(x)。"""
+    if age <= 10:
+        return 40.0
+    if age <= 16:
+        return 40.0 + 40.0 * (age - 10) / 6
+    if age <= 25:
+        return 80.0 + 5.73 * (age - 16) / 9
+    return 85.73
+
+
+def compute_scarcity(scores: Dict[str, float], age: Optional[int]) -> Optional[float]:
+    """稀缺值 = min(100, U_raw/U_ref × 100)，百分制。无年龄返回 None。"""
+    if age is None:
+        return None
+    d = [float(scores.get(k, 0)) - SCAR_MEAN for k in SOCIAL_WEIGHTS]
+    L = sum(x * x for x in d) ** 0.5
+    if L == 0:
+        cos_theta = 1.0
+    else:
+        cos_theta = sum(d) / (6 ** 0.5 * L)
+    if cos_theta <= 0:
+        return 0.0
+    beta = _scar_beta(int(age))
+    u_raw = L * (cos_theta ** beta)
+    uref = _scar_uref(int(age))
+    if uref <= 0:
+        return None
+    return round(min(100.0, u_raw / uref * 100.0), 1)
+
+
 def compute_composite(scores: Dict[str, float]) -> float:
     """综合分 = (2×心理 + 2×判断 + 1.5×自我认知 + 1.5×社交 + 1×学习 + 1×方向感) ÷ 9"""
     total = sum(WEIGHTS[k] * float(scores.get(k, 0)) for k in WEIGHTS)
@@ -120,14 +167,16 @@ def _pinyin_initials(text: str) -> str:
 class RadarStore:
     """人员六边形数据存储。线程安全（asyncio.Lock）。"""
 
-    def __init__(self, data_dir: str | Path, social_enabled: bool = False):
+    def __init__(self, data_dir: str | Path, social_enabled: bool = False, scarcity_enabled: bool = False):
         self._data_dir = Path(data_dir)
         self._data_dir.mkdir(parents=True, exist_ok=True)
         self._file = self._data_dir / "scores.json"
         self._lock = asyncio.Lock()
         self._persons: Dict[str, Dict[str, Any]] = {}
+        self._aliases: Dict[str, str] = {}
         self._mtime: float | None = None
         self._social_enabled = social_enabled
+        self._scarcity_enabled = scarcity_enabled
         self._load()
 
     # ---------- 内部 ----------
@@ -137,10 +186,12 @@ class RadarStore:
             if self._file.exists():
                 raw = json.loads(self._file.read_text(encoding="utf-8"))
                 self._persons = raw.get("persons", {})
+                self._aliases = dict(raw.get("aliases") or {})
                 self._mtime = self._file.stat().st_mtime
         except Exception as e:  # noqa: BLE001
             logger.error(f"astrbot_plugin_hexaradar: 读取数据文件失败，将重置: {e}")
             self._persons = {}
+            self._aliases = {}
             self._mtime = None
 
     def _sync_from_disk(self) -> None:
@@ -154,7 +205,11 @@ class RadarStore:
     async def _save(self) -> None:
         tmp = self._file.with_suffix(".json.tmp")
         tmp.write_text(
-            json.dumps({"persons": self._persons}, ensure_ascii=False, indent=2),
+            json.dumps(
+                {"persons": self._persons, "aliases": self._aliases},
+                ensure_ascii=False,
+                indent=2,
+            ),
             encoding="utf-8",
         )
         tmp.replace(self._file)
@@ -202,6 +257,7 @@ class RadarStore:
         """附加综合分等展示字段，返回副本。"""
         out = dict(person)
         out.pop("age_year", None)
+        out.pop("history", None)
         out["scores"] = dict(person.get("scores", {}))
         out["reasons"] = dict(person.get("reasons") or {})
         out["composite"] = compute_composite(out["scores"])
@@ -209,9 +265,17 @@ class RadarStore:
         out["social_enabled"] = self._social_enabled
         out["social_composite"] = None
         out["social_coeffs"] = None
-        if self._social_enabled and person.get("age") is not None:
-            out["social_composite"] = compute_social(out["scores"], person["age"])
-            out["social_coeffs"] = _social_coefficients(int(person["age"]))
+        out["scarcity_enabled"] = self._scarcity_enabled
+        out["scarcity"] = None
+        out["scarcity_params"] = None
+        if person.get("age") is not None:
+            age = int(person["age"])
+            if self._social_enabled:
+                out["social_composite"] = compute_social(out["scores"], age)
+                out["social_coeffs"] = _social_coefficients(age)
+            if self._scarcity_enabled:
+                out["scarcity"] = compute_scarcity(out["scores"], age)
+                out["scarcity_params"] = {"beta": round(_scar_beta(age), 4), "uref": round(_scar_uref(age), 4)}
         name = str(person.get("name", ""))
         initials = _pinyin_initials(name).upper()
         first = initials[:1] if initials else ""
@@ -244,6 +308,15 @@ class RadarStore:
             person = self._persons.get(name)
             return self._to_public(person) if person else None
 
+    async def get_person_history(self, name: str) -> List[Dict[str, Any]]:
+        """获取某人的更新记录（时间倒序，最多 10 条）。"""
+        async with self._lock:
+            self._sync_from_disk()
+            person = self._persons.get(name)
+            if not person:
+                return []
+            return list(person.get("history") or [])
+
     async def search_persons(self, query: str) -> List[Dict[str, Any]]:
         """按姓名/全拼/首字母/同音模糊搜索。"""
         return await self.list_persons(query=query)
@@ -252,7 +325,7 @@ class RadarStore:
         self, sort_by: str = "composite", limit: int = 10
     ) -> List[Dict[str, Any]]:
         """按综合分/社会参考分/任一维度降序排行。"""
-        valid = [dim["key"] for dim in DIMENSIONS] + ["composite", "social_composite"]
+        valid = [dim["key"] for dim in DIMENSIONS] + ["composite", "social_composite", "scarcity"]
         if sort_by not in valid:
             sort_by = "composite"
         async with self._lock:
@@ -260,9 +333,9 @@ class RadarStore:
             if self._rollover_ages():
                 await self._save()
             persons = [self._to_public(p) for p in self._persons.values()]
-        if sort_by == "social_composite":
+        if sort_by in ("social_composite", "scarcity"):
             persons.sort(
-                key=lambda p: (p["social_composite"] is None, -(p["social_composite"] or 0))
+                key=lambda p: (p[sort_by] is None, -(p[sort_by] or 0))
             )
         elif sort_by == "composite":
             persons.sort(key=lambda p: p["composite"], reverse=True)
@@ -280,10 +353,14 @@ class RadarStore:
         reasons: Optional[Dict[str, Any]] = None,
         age: Optional[int] = None,
         keep_age: bool = True,
+        batch: Optional[str] = None,
+        source: str = "web",
     ) -> Dict[str, Any]:
         """新建或更新人员。name 唯一，存在则覆盖。
 
         age: 显式传 None 表示清空年龄；keep_age=True 且未显式传 age 时保留旧值。
+        batch: 批次号（如 AI 同一次回答的 message_id），同批写入合并为一条更新记录。
+        source: 更新来源 "ai" / "web"。
         """
         name = name.strip()
         if not name:
@@ -307,6 +384,20 @@ class RadarStore:
             if age is not None or not keep_age:
                 new_age = age
                 new_age_year = time.localtime().tm_year if age is not None else None
+            changes = []
+            old_scores = old.get("scores", {})
+            for dim in DIMENSIONS:
+                key = dim["key"]
+                old_v = old_scores.get(key)
+                if old_v is not None and float(old_v) != float(scores_norm[key]):
+                    changes.append({"field": key, "label": dim["label"], "from": old_v, "to": scores_norm[key]})
+            if desc.strip() != old.get("desc", ""):
+                changes.append({"field": "desc", "label": "备注", "from": old.get("desc", ""), "to": desc.strip()})
+            old_age = old.get("age")
+            if (age is not None or not keep_age) and old_age != new_age:
+                changes.append({"field": "age", "label": "年龄", "from": old_age, "to": new_age})
+            if reasons_norm and reasons_norm != dict(old.get("reasons") or {}):
+                changes.append({"field": "reasons", "label": "评分理由", "from": "…", "to": "已更新"})
             person = {
                 "name": name,
                 "desc": desc.strip() or old.get("desc", ""),
@@ -314,11 +405,46 @@ class RadarStore:
                 "reasons": merged_reasons,
                 "age": new_age,
                 "age_year": new_age_year,
+                "history": self._append_history(old, changes, batch, source),
                 "updated_at": int(time.time()),
             }
             self._persons[name] = person
             await self._save()
         return self._to_public(person)
+
+    @staticmethod
+    def _append_history(
+        old: Dict[str, Any],
+        changes: List[Dict[str, Any]],
+        batch: Optional[str],
+        source: str,
+    ) -> List[Dict[str, Any]]:
+        """追加更新记录，上限 10 条；同批次（如同一 AI 回答）合并为一条。"""
+        history = list(old.get("history") or [])
+        if changes:
+            if batch and history and history[0].get("batch") == batch:
+                entry = history[0]
+                by_field: Dict[str, Dict[str, Any]] = {}
+                for c in entry["changes"]:
+                    by_field.setdefault(c["field"], c)
+                for c in changes:
+                    if c["field"] in by_field:
+                        by_field[c["field"]]["to"] = c["to"]
+                    else:
+                        by_field[c["field"]] = c
+                entry["changes"] = list(by_field.values())
+                entry["ts"] = int(time.time())
+            else:
+                history.insert(
+                    0,
+                    {
+                        "ts": int(time.time()),
+                        "source": source,
+                        "batch": batch,
+                        "changes": changes,
+                    },
+                )
+        return history[:10]
 
     async def delete_person(self, name: str) -> bool:
         async with self._lock:
@@ -327,6 +453,43 @@ class RadarStore:
             del self._persons[name]
             await self._save()
             return True
+
+    # ---------- 别名（匹配库内姓名自定义） ----------
+
+    async def get_aliases(self) -> Dict[str, str]:
+        async with self._lock:
+            self._sync_from_disk()
+            return dict(self._aliases)
+
+    async def set_alias(self, name: str, alias: str) -> Dict[str, str]:
+        """设置或更新别名；alias 为空时删除该别名。"""
+        name = name.strip()
+        alias = alias.strip()
+        async with self._lock:
+            if alias:
+                self._aliases[name] = alias
+            else:
+                self._aliases.pop(name, None)
+            await self._save()
+            return dict(self._aliases)
+
+    async def match_names(self, text: str) -> List[str]:
+        """返回文本中命中的库内真实姓名（同时匹配库内姓名与别名）。"""
+        if not text:
+            return []
+        async with self._lock:
+            self._sync_from_disk()
+            names = list(self._persons.keys())
+            aliases = dict(self._aliases)
+        hits = []
+        for n in names:
+            if n and n in text:
+                hits.append(n)
+                continue
+            alias = aliases.get(n, "")
+            if alias and alias in text:
+                hits.append(n)
+        return hits
 
     # ---------- 搜索 ----------
 

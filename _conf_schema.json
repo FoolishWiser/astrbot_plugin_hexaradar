@@ -13,5 +13,15 @@
     "description": "是否显示社会参考分（基于 25 岁成熟基准与年龄系数计算；未填年龄的人员不显示）",
     "type": "bool",
     "default": false
+  },
+  "show_scarcity_score": {
+    "description": "是否显示稀缺值（独特性算法，基于同龄均值 50 与年龄参数计算；未填年龄的人员不显示）",
+    "type": "bool",
+    "default": false
+  },
+  "auto_review": {
+    "description": "AI 回答后自动评审改分：回复文本命中库内姓名（含别名）时，调用模型评审是否调整评分，改分静默允许并在回复中提示",
+    "type": "bool",
+    "default": true
   }
 }

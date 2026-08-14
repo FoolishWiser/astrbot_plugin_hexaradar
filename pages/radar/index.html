@@ -17,6 +17,7 @@
         <select id="sort-select" class="sort-select" title="排序方式">
           <option value="composite">按综合分</option>
           <option value="social_composite">按社会参考分</option>
+          <option value="scarcity">按稀缺值</option>
           <option value="name">按名称（拼音）</option>
           <option value="learning">按学习能力</option>
           <option value="psychology">按心理承受力</option>
@@ -66,6 +67,7 @@
           <div id="detail-mode" class="seg detail-mode" hidden>
             <button id="mode-base" class="seg-btn active">个人基准分</button>
             <button id="mode-social" class="seg-btn">社会参考分</button>
+            <button id="mode-scar" class="seg-btn">稀缺值</button>
           </div>
         </div>
         <div class="detail-layout">
@@ -86,6 +88,7 @@
             <div class="detail-actions">
               <button id="detail-edit" class="btn">编辑</button>
               <button id="detail-delete" class="btn danger">删除</button>
+              <button id="detail-history" class="icon-btn" title="更新记录">🕘</button>
             </div>
           </div>
         </div>
@@ -117,6 +120,7 @@
             <div id="view-mode" class="seg detail-mode" hidden>
               <button id="v-mode-base" class="seg-btn active">个人基准分</button>
               <button id="v-mode-social" class="seg-btn">社会参考分</button>
+              <button id="v-mode-scar" class="seg-btn">稀缺值</button>
             </div>
             <div id="view-name" class="view-name"></div>
             <div id="view-age" class="detail-age"></div>
@@ -159,6 +163,17 @@
               <button id="edit-save" class="btn primary">保存</button>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="history-modal" class="modal-mask" hidden>
+      <div class="modal wide">
+        <h2 id="history-title">更新记录</h2>
+        <div id="history-list" class="history-list"></div>
+        <div class="modal-actions">
+          <div class="spacer"></div>
+          <button id="history-close" class="btn ghost">关闭</button>
         </div>
       </div>
     </div>

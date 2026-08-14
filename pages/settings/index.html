@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>六边形能力雷达 · 设置</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-logo">⬡</span>
+        <h1>六边形能力雷达 · 设置</h1>
+      </div>
+    </header>
+
+    <main class="content">
+      <div id="err-banner" class="err-banner" hidden></div>
+
+      <section class="panel">
+        <h2>显示与行为</h2>
+        <label class="row">
+          <span>显示社会参考分<small>25 岁成熟基准 · 未填年龄不显示</small></span>
+          <input id="cfg-social" type="checkbox" />
+        </label>
+        <label class="row">
+          <span>显示稀缺值<small>独特性算法 · 未填年龄不显示</small></span>
+          <input id="cfg-scar" type="checkbox" />
+        </label>
+        <label class="row">
+          <span>AI 回答后自动评审改分<small>回复命中库内姓名（含别名）时触发，改分静默允许并提示</small></span>
+          <input id="cfg-auto" type="checkbox" />
+        </label>
+      </section>
+
+      <section class="panel">
+        <h2>访问密码（仅保护 WebUI）</h2>
+        <label class="row">
+          <span>启用密码保护</span>
+          <input id="cfg-pwd-on" type="checkbox" />
+        </label>
+        <label class="row">
+          <span>密码</span>
+          <input id="cfg-pwd" type="password" placeholder="访问密码" autocomplete="new-password" />
+        </label>
+      </section>
+
+      <section class="panel">
+        <h2>匹配别名（对话匹配自定义）</h2>
+        <p class="hint">库内姓名为 A 时可自定义为 B，自动评审匹配对话时匹配 B 而非 A。人物展示仍用库内真名。</p>
+        <div id="alias-list" class="alias-list"></div>
+        <div class="alias-add">
+          <input id="alias-name" type="text" placeholder="库内姓名（必须存在）" />
+          <input id="alias-alias" type="text" placeholder="自定义别名（留空删除）" />
+          <button id="alias-save" class="btn primary">保存别名</button>
+        </div>
+      </section>
+
+      <div class="actions">
+        <button id="btn-save" class="btn primary">保存全部设置</button>
+        <span id="save-hint" class="hint" hidden>已保存</span>
+      </div>
+    </main>
+
+    <div id="password-modal" class="modal-mask" hidden>
+      <div class="modal">
+        <h2>🔒 需要访问密码</h2>
+        <p class="hint">此页面受密码保护，请输入管理员配置的访问密码。</p>
+        <input id="password-input" type="password" placeholder="访问密码" autocomplete="current-password" />
+        <p id="password-error" class="error" hidden>密码错误，请重试</p>
+        <div class="modal-actions">
+          <button id="password-ok" class="btn primary">解锁</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
