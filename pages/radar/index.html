@@ -11,6 +11,7 @@
       <div class="brand">
         <span class="brand-logo">⬡</span>
         <h1>六边形能力雷达</h1>
+        <button id="btn-settings" class="gear-btn" title="设置">⚙</button>
       </div>
       <div class="toolbar">
         <input id="search" class="search" type="search" placeholder="搜索：姓名 / 拼音 / 同音，如 xm、晓铭" autocomplete="off" />
@@ -174,6 +175,50 @@
         <div class="modal-actions">
           <div class="spacer"></div>
           <button id="history-close" class="btn ghost">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="settings-modal" class="modal-mask" hidden>
+      <div class="modal wide">
+        <h2>⚙ 设置</h2>
+        <div class="settings-body">
+          <h3>显示与行为</h3>
+          <label class="settings-row">
+            <span>显示社会参考分<small>25 岁成熟基准 · 未填年龄不显示</small></span>
+            <input id="set-social" type="checkbox" />
+          </label>
+          <label class="settings-row">
+            <span>显示稀缺值<small>独特性算法 · 未填年龄不显示</small></span>
+            <input id="set-scar" type="checkbox" />
+          </label>
+          <label class="settings-row">
+            <span>AI 回答后自动评审改分<small>回复命中库内姓名（含别名）时触发，改分静默允许并提示</small></span>
+            <input id="set-auto" type="checkbox" />
+          </label>
+          <h3>访问密码（仅保护 WebUI）</h3>
+          <label class="settings-row">
+            <span>启用密码保护</span>
+            <input id="set-pwd-on" type="checkbox" />
+          </label>
+          <label class="settings-row">
+            <span>密码</span>
+            <input id="set-pwd" type="password" placeholder="访问密码" autocomplete="new-password" />
+          </label>
+          <h3>匹配别名（对话匹配自定义）</h3>
+          <p class="hint">库内姓名为 A 时可自定义为 B，自动评审匹配对话时匹配 B 而非 A。人物展示仍用库内真名。</p>
+          <div id="set-alias-list" class="settings-alias-list"></div>
+          <div class="settings-alias-add">
+            <input id="set-alias-name" type="text" placeholder="库内姓名（必须存在）" />
+            <input id="set-alias-alias" type="text" placeholder="自定义别名（留空删除）" />
+            <button id="set-alias-save" class="btn ghost">保存别名</button>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <span id="settings-hint" class="hint" hidden></span>
+          <div class="spacer"></div>
+          <button id="settings-close" class="btn ghost">关闭</button>
+          <button id="settings-save" class="btn primary">保存全部设置</button>
         </div>
       </div>
     </div>

@@ -19,6 +19,7 @@ const state = {
   sortDir: "desc",
   pyFilter: null,
   socialEnabled: false,
+  scarcityEnabled: false,
   scoreMode: "base",
   editing: null,
   viewing: null,
@@ -330,6 +331,7 @@ async function loadList() {
     }
     state.persons = data.persons || [];
     state.socialEnabled = !!(data.social_enabled ?? state.persons[0]?.social_enabled);
+    state.scarcityEnabled = !!(data.scarcity_enabled ?? state.persons[0]?.scarcity_enabled);
     $("btn-lock").hidden = !pwd();
     render();
   } catch (e) {
@@ -684,6 +686,97 @@ async function openHistoryModal() {
   }
 }
 
+let settingsData = null;
+
+async function openSettingsModal() {
+  $("settings-modal").hidden = false;
+  $("settings-modal").querySelector(".modal").scrollTop = 0;
+  try {
+    const data = await bridge.apiGet("settings", authParams());
+    settingsData = data;
+    $("set-social").checked = !!data.show_social_score;
+    $("set-scar").checked = !!data.show_scarcity_score;
+    $("set-auto").checked = !!data.auto_review;
+    $("set-pwd-on").checked = !!data.password_enabled;
+    $("set-pwd").value = data.password || "";
+    renderSettingsAliases(data.aliases || {});
+  } catch (e) {
+    $("settings-modal").hidden = true;
+    if (String(e.message || "").includes("密码") || e.message === "Unauthorized") {
+      showPasswordModal(true, !!pwd());
+    } else {
+      showError(e.message);
+    }
+  }
+}
+
+function renderSettingsAliases(aliases) {
+  const entries = Object.entries(aliases);
+  $("set-alias-list").innerHTML = entries.length
+    ? entries.map(([name, alias]) => `
+        <div class="settings-alias-row">
+          <span class="alias-name">${esc(name)}</span>
+          <span class="alias-arrow">→</span>
+          <span class="alias-alias">${esc(alias)}</span>
+          <button class="btn ghost" data-del="${esc(name)}">删除</button>
+        </div>`).join("")
+    : `<p class="hint">暂无别名</p>`;
+  $("set-alias-list").querySelectorAll("button[data-del]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      $("set-alias-name").value = btn.dataset.del;
+      $("set-alias-alias").value = "";
+      saveSettingsAlias();
+    });
+  });
+}
+
+function settingsForm() {
+  return {
+    password_enabled: $("set-pwd-on").checked,
+    password: $("set-pwd").value,
+    show_social_score: $("set-social").checked,
+    show_scarcity_score: $("set-scar").checked,
+    auto_review: $("set-auto").checked,
+  };
+}
+
+async function saveSettingsAll() {
+  const body = settingsForm();
+  try {
+    const data = await bridge.apiPost("settings", authBody(body));
+    settingsData = data;
+    if (body.password_enabled && body.password && pwdValue !== body.password) {
+      pwdValue = body.password;
+    }
+    $("settings-hint").textContent = "已保存";
+    $("settings-hint").hidden = false;
+    clearTimeout(saveSettingsAll._t);
+    saveSettingsAll._t = setTimeout(() => { $("settings-hint").hidden = true; }, 2200);
+    await loadList();
+  } catch (e) {
+    $("settings-hint").textContent = "保存失败：" + e.message;
+    $("settings-hint").hidden = false;
+  }
+}
+
+async function saveSettingsAlias() {
+  const name = $("set-alias-name").value.trim();
+  const alias = $("set-alias-alias").value.trim();
+  if (!name) return;
+  try {
+    const data = await bridge.apiPost("settings", authBody({
+      ...settingsForm(),
+      aliases: { [name]: alias },
+    }));
+    renderSettingsAliases(data.aliases || {});
+    $("set-alias-name").value = "";
+    $("set-alias-alias").value = "";
+  } catch (e) {
+    $("settings-hint").textContent = "别名保存失败：" + e.message;
+    $("settings-hint").hidden = false;
+  }
+}
+
 function bindEvents() {
   let timer = null;
   $("search").addEventListener("input", (e) => {
@@ -784,6 +877,13 @@ function bindEvents() {
     $("history-modal").hidden = true;
   });
 
+  $("btn-settings").addEventListener("click", openSettingsModal);
+  $("settings-close").addEventListener("click", () => {
+    $("settings-modal").hidden = true;
+  });
+  $("settings-save").addEventListener("click", saveSettingsAll);
+  $("set-alias-save").addEventListener("click", saveSettingsAlias);
+
   $("btn-add").addEventListener("click", () => openEdit(null));
   $("btn-lock").addEventListener("click", () => {
     pwdValue = "";
@@ -853,6 +953,7 @@ function bindEvents() {
         if (mask.id === "edit-modal") closeEdit();
         else if (mask.id === "confirm-modal") settleConfirm(false);
         else if (mask.id === "history-modal") $("history-modal").hidden = true;
+        else if (mask.id === "settings-modal") $("settings-modal").hidden = true;
         else showPasswordModal(false);
       }
     });
