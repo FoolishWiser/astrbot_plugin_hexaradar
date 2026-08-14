@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v3.0.1] - 2026-08-06
+
+### 修复
+
+- 修复页面错误「scarcityBadge is not defined」：稀缺值徽章函数定义缺失（发布时仅保留调用处），已补全
+
 ## [v3.0.0] - 2026-08-06
 
 ### 新增

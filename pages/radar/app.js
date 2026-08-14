@@ -157,6 +157,11 @@ function socialBadge(p) {
   return `<span class="badge social" title="社会参考分（25岁成熟基准）">社 ${p.social_composite}</span>`;
 }
 
+function scarcityBadge(p) {
+  if (!state.scarcityEnabled || p.scarcity == null) return "";
+  return `<span class="badge scar" title="稀缺值（独特性算法）">稀 ${p.scarcity}</span>`;
+}
+
 function dimLabel(key) {
   const dim = DIMS.find((d) => d.key === key);
   return dim ? dim.label : null;
