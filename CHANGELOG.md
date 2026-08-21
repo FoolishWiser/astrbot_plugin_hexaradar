@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [v3.2.1] - 2026-08-21
+
+### 修复
+
+- 修复插件加载失败「不受支持的配置类型 number」：AstrBot 配置 schema 仅支持 `int`/`float`/`bool`/`string` 等类型，`auto_review_max_delta` 改为 `float`、`auto_review_cooldown` 改为 `int`（v3.2.0 引入该问题，插件无法加载）
+
 ## [v3.2.0] - 2026-08-15
 
 ### 新增

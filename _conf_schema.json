@@ -36,12 +36,12 @@
   },
   "auto_review_max_delta": {
     "description": "自动评审单次调整上限（0-100，0=不限制）：开启后每个维度单次调整幅度不超过 ±N，超出部分自动钳制并在提示中注明",
-    "type": "number",
+    "type": "float",
     "default": 0
   },
   "auto_review_cooldown": {
     "description": "自动评审冷却时间（秒，0=关闭）：同一人在该时间内重复提及不再重复发起评审，避免对话中反复空转",
-    "type": "number",
+    "type": "int",
     "default": 30
   }
 }
