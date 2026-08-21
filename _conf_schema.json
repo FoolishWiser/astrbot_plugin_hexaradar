@@ -43,5 +43,10 @@
     "description": "自动评审冷却时间（秒，0=关闭）：同一人在该时间内重复提及不再重复发起评审，避免对话中反复空转",
     "type": "int",
     "default": 30
+  },
+  "auto_review_provider": {
+    "description": "自动评审使用的 LLM 提供商实例 id（从 AstrBot 已有配置中选择）；留空则跟随当前会话使用的提供商",
+    "type": "string",
+    "default": ""
   }
 }

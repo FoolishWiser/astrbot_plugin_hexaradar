@@ -8,6 +8,12 @@ function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+function fillProviderSelect(selectEl, providers, current) {
+  selectEl.innerHTML = '<option value="">跟随当前会话（默认）</option>' +
+    providers.map((p) => `<option value="${esc(p.id)}">${esc(p.label)}</option>`).join("");
+  selectEl.value = providers.some((p) => p.id === current) ? current : "";
+}
+
 function authParams(params = {}) {
   return pwdValue ? { ...params, pwd: pwdValue } : params;
 }
@@ -46,6 +52,7 @@ async function load() {
     $("cfg-auto-evidence").checked = data.auto_review_require_evidence !== false;
     $("cfg-auto-delta").value = data.auto_review_max_delta ?? 0;
     $("cfg-auto-cooldown").value = data.auto_review_cooldown ?? 30;
+    fillProviderSelect($("cfg-auto-provider"), data.review_providers || [], data.auto_review_provider || "");
     $("cfg-pwd-on").checked = !!data.password_enabled;
     $("cfg-pwd").value = data.password || "";
     renderAliases(data.aliases || {});
@@ -99,6 +106,7 @@ function currentForm() {
     auto_review_require_evidence: $("cfg-auto-evidence").checked,
     auto_review_max_delta: Number($("cfg-auto-delta").value) || 0,
     auto_review_cooldown: Number($("cfg-auto-cooldown").value) || 0,
+    auto_review_provider: $("cfg-auto-provider").value,
   };
 }
 

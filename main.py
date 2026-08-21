@@ -230,6 +230,8 @@ class Main(Star):
                 "auto_review_cooldown": self._as_int(
                     self.config.get("auto_review_cooldown"), 30
                 ),
+                "auto_review_provider": str(self.config.get("auto_review_provider", "")),
+                "review_providers": self._list_review_providers(),
                 "aliases": aliases,
             }
         )
@@ -265,6 +267,10 @@ class Main(Star):
             self.config["auto_review_cooldown"] = max(
                 0, self._as_int(payload["auto_review_cooldown"], 30)
             )
+        if "auto_review_provider" in payload:
+            self.config["auto_review_provider"] = str(
+                payload["auto_review_provider"]
+            ).strip()
         self.config.save_config()
         self._sync_flags()
         if "aliases" in payload and isinstance(payload["aliases"], dict):
@@ -348,6 +354,124 @@ class Main(Star):
         except (TypeError, ValueError):
             return default
 
+    # ---------- 评审提供商（从 AstrBot 已有配置中选择） ----------
+
+    @staticmethod
+    def _provider_id(p: Any) -> str:
+        """取提供商实例的 id（兼容各版本：provider_config['id'] / 实例 id / default）。"""
+        try:
+            cfg = getattr(p, "provider_config", None) or {}
+            pid = str(cfg.get("id") or "")
+            if pid:
+                return pid
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            pid = str(getattr(p, "id", "") or "")
+            if pid:
+                return pid
+        except Exception:  # noqa: BLE001
+            pass
+        return ""
+
+    @staticmethod
+    def _provider_type(p: Any) -> str:
+        try:
+            cfg = getattr(p, "provider_config", None) or {}
+            return str(cfg.get("type") or getattr(p, "provider_name", "") or "")
+        except Exception:  # noqa: BLE001
+            return ""
+
+    @staticmethod
+    def _provider_model(p: Any) -> str:
+        try:
+            model = getattr(p, "get_model", None)
+            if callable(model):
+                return str(model() or "")
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            return str(getattr(p, "model_name", "") or "")
+        except Exception:  # noqa: BLE001
+            return ""
+
+    def _list_review_providers(self) -> List[Dict[str, Any]]:
+        """枚举 AstrBot 中已配置的 LLM 提供商实例（兼容 4.17-4.27 的 Context API），供设置页下拉选择。"""
+        insts: List[Any] = []
+        ctx = self.context
+        try:
+            if hasattr(ctx, "get_all_providers"):
+                insts = ctx.get_all_providers() or []
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"astrbot_plugin_hexaradar: 枚举提供商失败: {e}")
+        if not insts:
+            pm = getattr(ctx, "provider_manager", None)
+            if pm is not None:
+                try:
+                    insts = getattr(pm, "provider_insts", None) or []
+                except Exception:  # noqa: BLE001
+                    insts = []
+                if not insts:
+                    try:
+                        inst_map = getattr(pm, "inst_map", None) or {}
+                        insts = list(inst_map.values())
+                    except Exception:  # noqa: BLE001
+                        insts = []
+        out: List[Dict[str, Any]] = []
+        seen: Dict[str, int] = {}
+        for p in insts:
+            if p is None:
+                continue
+            pid = self._provider_id(p)
+            ptype = self._provider_type(p)
+            model = self._provider_model(p)
+            if not pid and not ptype:
+                continue
+            label = f"{ptype} · {model}" if model else (ptype or pid)
+            seen[label] = seen.get(label, 0) + 1
+            out.append({"id": pid, "type": ptype, "model": model, "label": label})
+        # 同名 label 去重：追加 id 后缀便于区分
+        for item in out:
+            if seen[item["label"]] > 1:
+                item["label"] = f"{item['label']}（{item['id']}）"
+        out.sort(key=lambda x: (x["type"], x["model"], x["id"]))
+        return out
+
+    def _get_review_provider(self, provider_id: str) -> Any:
+        """按 id 解析评审提供商实例；找不到返回 None。"""
+        if not provider_id:
+            return None
+        ctx = self.context
+        try:
+            if hasattr(ctx, "get_provider_by_id"):
+                p = ctx.get_provider_by_id(provider_id)
+                if p is not None:
+                    return p
+        except Exception:  # noqa: BLE001
+            pass
+        pm = getattr(ctx, "provider_manager", None)
+        if pm is not None:
+            try:
+                if hasattr(pm, "get_provider_by_id"):
+                    p = pm.get_provider_by_id(provider_id)
+                    if p is not None:
+                        return p
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                inst_map = getattr(pm, "inst_map", None) or {}
+                if provider_id in inst_map:
+                    return inst_map[provider_id]
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                for p in (getattr(pm, "provider_insts", None) or []):
+                    if self._provider_id(p) == provider_id:
+                        return p
+            except Exception:  # noqa: BLE001
+                pass
+        return None
+
     async def _run_review(
         self,
         event: AstrMessageEvent,
@@ -355,7 +479,18 @@ class Main(Star):
         user_msg: str,
         reply: str,
     ) -> None:
-        provider = self.context.get_using_provider(umo=event.unified_msg_origin)
+        # 评审提供商：优先使用配置的 auto_review_provider，回退到当前会话提供商
+        provider = None
+        review_pid = str(self.config.get("auto_review_provider", "")).strip()
+        if review_pid:
+            provider = self._get_review_provider(review_pid)
+            if provider is None:
+                logger.warning(
+                    "astrbot_plugin_hexaradar: 未找到配置的评审提供商 "
+                    f"{review_pid!r}，回退到当前会话提供商"
+                )
+        if provider is None:
+            provider = self.context.get_using_provider(umo=event.unified_msg_origin)
         if not provider:
             logger.warning("astrbot_plugin_hexaradar: 未找到提供商，跳过自动评审")
             return

@@ -40,6 +40,12 @@ function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+function fillProviderSelect(selectEl, providers, current) {
+  selectEl.innerHTML = '<option value="">跟随当前会话（默认）</option>' +
+    providers.map((p) => `<option value="${esc(p.id)}">${esc(p.label)}</option>`).join("");
+  selectEl.value = providers.some((p) => p.id === current) ? current : "";
+}
+
 function hueFor(name) {
   let h = 0;
   for (const ch of String(name)) h = (h * 31 + ch.codePointAt(0)) % 360;
@@ -720,6 +726,7 @@ async function openSettingsModal() {
     $("set-auto-evidence").checked = data.auto_review_require_evidence !== false;
     $("set-auto-delta").value = data.auto_review_max_delta ?? 0;
     $("set-auto-cooldown").value = data.auto_review_cooldown ?? 30;
+    fillProviderSelect($("set-auto-provider"), data.review_providers || [], data.auto_review_provider || "");
     $("set-pwd-on").checked = !!data.password_enabled;
     $("set-pwd").value = data.password || "";
     renderSettingsAliases(data.aliases || {});
@@ -764,6 +771,7 @@ function settingsForm() {
     auto_review_require_evidence: $("set-auto-evidence").checked,
     auto_review_max_delta: Number($("set-auto-delta").value) || 0,
     auto_review_cooldown: Number($("set-auto-cooldown").value) || 0,
+    auto_review_provider: $("set-auto-provider").value,
   };
 }
 
