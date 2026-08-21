@@ -28,8 +28,28 @@
           <input id="cfg-scar" type="checkbox" />
         </label>
         <label class="row">
-          <span>AI 回答后自动评审改分<small>回复命中库内姓名（含别名）时触发，改分静默允许并提示</small></span>
+          <span>AI 回答后自动评审改分<small>对话命中库内姓名（含别名）时触发，改分静默允许并提示</small></span>
           <input id="cfg-auto" type="checkbox" />
+        </label>
+        <label class="row">
+          <span>评审触发范围<small>both=用户消息或回复提及；user=仅用户提及；reply=仅回复提及</small></span>
+          <select id="cfg-auto-trigger">
+            <option value="both">both（推荐）</option>
+            <option value="user">user</option>
+            <option value="reply">reply</option>
+          </select>
+        </label>
+        <label class="row">
+          <span>评审必须引用证据<small>无对话原文证据的改分提案将被拒绝</small></span>
+          <input id="cfg-auto-evidence" type="checkbox" />
+        </label>
+        <label class="row">
+          <span>单次调整上限<small>0=不限制；&gt;0 时每维度每次调整不超过 ±N</small></span>
+          <input id="cfg-auto-delta" type="number" min="0" max="100" step="1" />
+        </label>
+        <label class="row">
+          <span>评审冷却时间（秒）<small>0=关闭；同一人短时间重复提及不重复评审</small></span>
+          <input id="cfg-auto-cooldown" type="number" min="0" step="1" />
         </label>
       </section>
 

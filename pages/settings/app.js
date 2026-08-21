@@ -40,6 +40,12 @@ async function load() {
     $("cfg-social").checked = !!data.show_social_score;
     $("cfg-scar").checked = !!data.show_scarcity_score;
     $("cfg-auto").checked = !!data.auto_review;
+    $("cfg-auto-trigger").value = ["both", "user", "reply"].includes(data.auto_review_trigger)
+      ? data.auto_review_trigger
+      : "both";
+    $("cfg-auto-evidence").checked = data.auto_review_require_evidence !== false;
+    $("cfg-auto-delta").value = data.auto_review_max_delta ?? 0;
+    $("cfg-auto-cooldown").value = data.auto_review_cooldown ?? 30;
     $("cfg-pwd-on").checked = !!data.password_enabled;
     $("cfg-pwd").value = data.password || "";
     renderAliases(data.aliases || {});
@@ -89,6 +95,10 @@ function currentForm() {
     show_social_score: $("cfg-social").checked,
     show_scarcity_score: $("cfg-scar").checked,
     auto_review: $("cfg-auto").checked,
+    auto_review_trigger: $("cfg-auto-trigger").value,
+    auto_review_require_evidence: $("cfg-auto-evidence").checked,
+    auto_review_max_delta: Number($("cfg-auto-delta").value) || 0,
+    auto_review_cooldown: Number($("cfg-auto-cooldown").value) || 0,
   };
 }
 

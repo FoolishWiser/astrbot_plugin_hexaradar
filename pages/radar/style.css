@@ -170,6 +170,22 @@ body {
   min-width: 180px;
 }
 
+.settings-row select,
+.settings-row input[type="number"] {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+  min-width: 130px;
+  font-size: 14px;
+}
+
+.settings-row select {
+  cursor: pointer;
+}
+
 .settings-alias-list {
   display: flex;
   flex-direction: column;
@@ -531,6 +547,23 @@ body {
   font-size: 13px;
   line-height: 1.7;
   color: var(--text);
+  word-break: break-all;
+}
+
+.history-reason {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+  font-weight: 550;
+  word-break: break-all;
+}
+
+.history-evidence {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
   word-break: break-all;
 }
 

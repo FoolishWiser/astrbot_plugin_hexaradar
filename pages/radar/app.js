@@ -678,6 +678,12 @@ async function openHistoryModal() {
         const arrow = `${c.from} → ${c.to}`;
         return `<div class="history-change">· ${esc(c.label)}  ${esc(arrow)}</div>`;
       }).join("");
+      const reason = entry.reason
+        ? `<div class="history-reason">理由：${esc(entry.reason)}</div>`
+        : "";
+      const evidence = entry.evidence
+        ? `<div class="history-evidence">证据：「${esc(entry.evidence)}」</div>`
+        : "";
       const src = entry.source === "ai"
         ? `<span class="chip mid">AI</span>`
         : `<span class="chip high">WebUI</span>`;
@@ -688,6 +694,8 @@ async function openHistoryModal() {
             ${src}
           </div>
           ${changes}
+          ${reason}
+          ${evidence}
         </div>`;
     }).join("");
   } catch (e) {
@@ -706,6 +714,12 @@ async function openSettingsModal() {
     $("set-social").checked = !!data.show_social_score;
     $("set-scar").checked = !!data.show_scarcity_score;
     $("set-auto").checked = !!data.auto_review;
+    $("set-auto-trigger").value = ["both", "user", "reply"].includes(data.auto_review_trigger)
+      ? data.auto_review_trigger
+      : "both";
+    $("set-auto-evidence").checked = data.auto_review_require_evidence !== false;
+    $("set-auto-delta").value = data.auto_review_max_delta ?? 0;
+    $("set-auto-cooldown").value = data.auto_review_cooldown ?? 30;
     $("set-pwd-on").checked = !!data.password_enabled;
     $("set-pwd").value = data.password || "";
     renderSettingsAliases(data.aliases || {});
@@ -746,6 +760,10 @@ function settingsForm() {
     show_social_score: $("set-social").checked,
     show_scarcity_score: $("set-scar").checked,
     auto_review: $("set-auto").checked,
+    auto_review_trigger: $("set-auto-trigger").value,
+    auto_review_require_evidence: $("set-auto-evidence").checked,
+    auto_review_max_delta: Number($("set-auto-delta").value) || 0,
+    auto_review_cooldown: Number($("set-auto-cooldown").value) || 0,
   };
 }
 

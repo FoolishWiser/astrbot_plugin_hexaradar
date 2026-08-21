@@ -354,12 +354,14 @@ class RadarStore:
         keep_age: bool = True,
         batch: Optional[str] = None,
         source: str = "web",
+        history_meta: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """新建或更新人员。name 唯一，存在则覆盖。
 
         age: 显式传 None 表示清空年龄；keep_age=True 且未显式传 age 时保留旧值。
         batch: 批次号（如 AI 同一次回答的 message_id），同批写入合并为一条更新记录。
         source: 更新来源 "ai" / "web"。
+        history_meta: 附加到更新记录的元数据（如 {"reason": ..., "evidence": ...}，自动评审改分用）。
         """
         name = name.strip()
         if not name:
@@ -404,7 +406,7 @@ class RadarStore:
                 "reasons": merged_reasons,
                 "age": new_age,
                 "age_year": new_age_year,
-                "history": self._append_history(old, changes, batch, source),
+                "history": self._append_history(old, changes, batch, source, history_meta),
                 "updated_at": int(time.time()),
             }
             self._persons[name] = person
@@ -417,8 +419,12 @@ class RadarStore:
         changes: List[Dict[str, Any]],
         batch: Optional[str],
         source: str,
+        history_meta: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        """追加更新记录，上限 10 条；同批次（如同一 AI 回答）合并为一条。"""
+        """追加更新记录，上限 10 条；同批次（如同一 AI 回答）合并为一条。
+
+        history_meta 的键值（如 reason/evidence）随记录一并保存，合并时取最新。
+        """
         history = list(old.get("history") or [])
         if changes:
             if batch and history and history[0].get("batch") == batch:
@@ -433,16 +439,22 @@ class RadarStore:
                         by_field[c["field"]] = c
                 entry["changes"] = list(by_field.values())
                 entry["ts"] = int(time.time())
+                if history_meta:
+                    for k, v in history_meta.items():
+                        if v:
+                            entry[k] = v
             else:
-                history.insert(
-                    0,
-                    {
-                        "ts": int(time.time()),
-                        "source": source,
-                        "batch": batch,
-                        "changes": changes,
-                    },
-                )
+                entry: Dict[str, Any] = {
+                    "ts": int(time.time()),
+                    "source": source,
+                    "batch": batch,
+                    "changes": changes,
+                }
+                if history_meta:
+                    for k, v in history_meta.items():
+                        if v:
+                            entry[k] = v
+                history.insert(0, entry)
         return history[:10]
 
     async def delete_person(self, name: str) -> bool:

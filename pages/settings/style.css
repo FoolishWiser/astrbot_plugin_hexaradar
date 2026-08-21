@@ -147,6 +147,22 @@ body {
   min-width: 200px;
 }
 
+.row select,
+.row input[type="number"] {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+  min-width: 140px;
+  font-size: 14px;
+}
+
+.row select {
+  cursor: pointer;
+}
+
 .hint {
   color: var(--muted);
   font-size: 13px;

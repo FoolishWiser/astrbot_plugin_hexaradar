@@ -8,6 +8,7 @@
 
 import json
 import re
+import time
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -45,6 +46,7 @@ class Main(Star):
             scarcity_enabled=bool(config.get("show_scarcity_score", False)),
         )
         self._reviewing: set = set()
+        self._last_review_at: Dict[str, float] = {}
 
         self.context.register_web_api(
             f"/{PLUGIN_NAME}/list", self.api_list, ["GET"], "获取人员列表（支持 q 搜索）"
@@ -218,6 +220,16 @@ class Main(Star):
                 "show_social_score": bool(self.config.get("show_social_score", False)),
                 "show_scarcity_score": bool(self.config.get("show_scarcity_score", False)),
                 "auto_review": bool(self.config.get("auto_review", True)),
+                "auto_review_trigger": str(self.config.get("auto_review_trigger", "both")),
+                "auto_review_require_evidence": bool(
+                    self.config.get("auto_review_require_evidence", True)
+                ),
+                "auto_review_max_delta": self._as_float(
+                    self.config.get("auto_review_max_delta"), 0.0
+                ),
+                "auto_review_cooldown": self._as_int(
+                    self.config.get("auto_review_cooldown"), 30
+                ),
                 "aliases": aliases,
             }
         )
@@ -229,12 +241,30 @@ class Main(Star):
         denied = self._require_password(payload)
         if denied:
             return denied
-        booleans = ["password_enabled", "show_social_score", "show_scarcity_score", "auto_review"]
+        booleans = [
+            "password_enabled",
+            "show_social_score",
+            "show_scarcity_score",
+            "auto_review",
+            "auto_review_require_evidence",
+        ]
         for key in booleans:
             if key in payload:
                 self.config[key] = bool(payload[key])
         if "password" in payload:
             self.config["password"] = str(payload.get("password", ""))
+        if "auto_review_trigger" in payload:
+            trigger = str(payload["auto_review_trigger"]).strip().lower()
+            if trigger in ("both", "user", "reply"):
+                self.config["auto_review_trigger"] = trigger
+        if "auto_review_max_delta" in payload:
+            self.config["auto_review_max_delta"] = max(
+                0.0, min(100.0, self._as_float(payload["auto_review_max_delta"], 0.0))
+            )
+        if "auto_review_cooldown" in payload:
+            self.config["auto_review_cooldown"] = max(
+                0, self._as_int(payload["auto_review_cooldown"], 30)
+            )
         self.config.save_config()
         self._sync_flags()
         if "aliases" in payload and isinstance(payload["aliases"], dict):
@@ -247,37 +277,96 @@ class Main(Star):
 
     @filter.on_llm_response()
     async def auto_review(self, event: AstrMessageEvent, resp: LLMResponse):
-        """回答结束后：若回复命中库内姓名（含别名），调用模型评审并静默改分。"""
+        """回答结束后：若对话（按 auto_review_trigger 配置扫用户消息/AI 回复）命中库内姓名（含别名），
+        调用模型评审并静默改分。仅当出现新的、可引用的信息时调整，改分写入更新记录并发送提示。"""
         try:
             if not self.config.get("auto_review", True):
                 return
             umo = event.unified_msg_origin
             if umo in self._reviewing:
                 return
-            reply = ""
-            if resp and resp.result:
-                result = resp.result
-                if isinstance(result, str):
-                    reply = result
-                else:
-                    reply = str(getattr(result, "text", result))
-            names = await self.store.match_names(reply or "")
+            reply = self._response_text(resp)
+            user_msg = self._user_text(event)
+            trigger = str(self.config.get("auto_review_trigger", "both")).strip().lower()
+            names: set = set()
+            if trigger in ("both", "user") and user_msg:
+                names.update(await self.store.match_names(user_msg))
+            if trigger in ("both", "reply") and reply:
+                names.update(await self.store.match_names(reply))
             if not names:
+                return
+            # 冷却过滤：同一人短时间重复提及不再重复发起评审
+            now = time.monotonic()
+            cooldown = self._as_int(self.config.get("auto_review_cooldown"), 30)
+            active = [
+                n
+                for n in names
+                if cooldown <= 0 or now - self._last_review_at.get(n, 0.0) >= cooldown
+            ]
+            if not active:
                 return
             self._reviewing.add(umo)
             try:
-                await self._run_review(event, names, reply)
+                await self._run_review(event, active, user_msg, reply)
             finally:
                 self._reviewing.discard(umo)
         except Exception as e:  # noqa: BLE001
             logger.error(f"astrbot_plugin_hexaradar: 自动评审出错: {e}")
 
-    async def _run_review(self, event: AstrMessageEvent, names: List[str], reply: str) -> None:
+    @staticmethod
+    def _response_text(resp: Any) -> str:
+        """从 LLMResponse（或其 result）中提取文本。"""
+        if not resp or not resp.result:
+            return ""
+        result = resp.result
+        if isinstance(result, str):
+            return result
+        return str(getattr(result, "text", result))
+
+    @staticmethod
+    def _user_text(event: AstrMessageEvent) -> str:
+        """提取用户消息文本（AstrBot 4.x message_str，缺失时回退 message_obj）。"""
+        text = getattr(event, "message_str", "") or ""
+        if text:
+            return str(text)
+        msg_obj = getattr(event, "message_obj", None)
+        if msg_obj is None:
+            return ""
+        return str(getattr(msg_obj, "message_str", "") or msg_obj)
+
+    @staticmethod
+    def _as_int(value: Any, default: int) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _as_float(value: Any, default: float) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    async def _run_review(
+        self,
+        event: AstrMessageEvent,
+        names: List[str],
+        user_msg: str,
+        reply: str,
+    ) -> None:
         provider = self.context.get_using_provider(umo=event.unified_msg_origin)
         if not provider:
             logger.warning("astrbot_plugin_hexaradar: 未找到提供商，跳过自动评审")
             return
-        lines = ["请根据对话中关于以下人员的最新信息，判断是否需要调整其能力评分。", ""]
+        now = time.monotonic()
+        for n in names:
+            self._last_review_at[n] = now
+        lines = [
+            "你是六边形能力雷达的持续评估者。请判断本次对话是否包含关于以下人员的【新的、可引用的信息】",
+            "（事件/行为/表态/事实），需要调整其能力评分。",
+            "",
+        ]
         for name in names:
             p = await self.store.get_person(name)
             if not p:
@@ -287,14 +376,24 @@ class Main(Star):
                 f"{DIMENSION_LABELS[dim['key']]}={scores.get(dim['key'], 0)}" for dim in DIMENSIONS
             )
             lines.append(f"- {name}（年龄 {p.get('age', '未知')}）：{parts}")
+            reasons = p.get("reasons") or {}
+            reason_parts = [
+                f"{DIMENSION_LABELS[dim['key']]}：{reasons.get(dim['key'], '无')}" for dim in DIMENSIONS
+            ]
+            lines.append(f"  现有评分理由：{'；'.join(reason_parts)}")
         lines += [
             "",
-            "最新对话内容（供评审参考）：",
-            reply[:1500],
+            "本次对话内容：",
+            f"【用户消息】{user_msg[:800]}" if user_msg else "【用户消息】（无）",
+            f"【AI 回复】{reply[:800]}" if reply else "【AI 回复】（无）",
             "",
-            "规则：仅当出现新的有效信息（事件/行为/表态）时调整，评分范围 0-100。",
-            "只输出一个紧凑 JSON 对象，不要输出任何其他文字：",
-            '{"changes": {"psychology": 90}, "reason": "一句话理由"}',
+            "规则：",
+            "1. 仅当对话中出现新的、可引用的信息时才调整评分；没有新信息时只输出 NONE；",
+            "2. 必须从对话原文引用一句作为 evidence；无法引用原文则输出 NONE；",
+            "3. 已经反映在上述现有评分理由中的旧信息，不要重复调整；",
+            "4. 评分范围 0-100；name 必须是上面列出的人员；changes 只含需要调整的维度键；",
+            "5. 只输出一个紧凑 JSON 对象，不要输出任何其他文字：",
+            '{"updates": [{"name": "小明", "changes": {"psychology": 90}, "reason": "一句话理由", "evidence": "对话原文引用"}]}',
             "若无需调整，只输出 NONE。",
         ]
         prompt = "\n".join(lines)
@@ -305,86 +404,131 @@ class Main(Star):
         except Exception as e:  # noqa: BLE001
             logger.error(f"astrbot_plugin_hexaradar: 评审调用失败: {e}")
             return
-        text = ""
-        if provider_result:
-            result = provider_result.result
-            if isinstance(result, str):
-                text = result
-            else:
-                text = str(getattr(result, "text", result))
-        text = (text or "").strip()
+        text = self._response_text(provider_result).strip()
         if not text or text.upper().startswith("NONE"):
             return
-        proposal = self._parse_review_json(text)
-        if not proposal:
+        proposals = self._parse_review_json(text)
+        if not proposals:
             return
-        changes = proposal.get("changes") or {}
-        reason = str(proposal.get("reason", ""))
-        name = str(proposal.get("name", "")).strip() or names[0]
-        person = await self.store.get_person(name)
-        if not person:
-            return
-        key_to_label = {dim["key"]: dim["label"] for dim in DIMENSIONS}
-        valid_changes: Dict[str, float] = {}
-        for key, value in changes.items():
-            label = key_to_label.get(key, key)
-            try:
-                value = float(value)
-            except (TypeError, ValueError):
+        require_evidence = bool(self.config.get("auto_review_require_evidence", True))
+        delta_max = self._as_float(self.config.get("auto_review_max_delta"), 0.0)
+        applied: List[Dict[str, Any]] = []
+        for proposal in proposals:
+            name = str(proposal.get("name", "")).strip()
+            if not name or name not in names:
                 continue
-            if not (0 <= value <= 100):
+            changes = proposal.get("changes") or {}
+            if not isinstance(changes, dict):
                 continue
-            if abs(value - float(person["scores"].get(key, 0))) < 1e-9:
+            reason = str(proposal.get("reason", "")).strip()
+            evidence = str(proposal.get("evidence", "")).strip()
+            if require_evidence and not evidence:
                 continue
-            valid_changes[key] = value
-        if not valid_changes:
-            return
-        new_scores = dict(person["scores"])
-        for key, value in valid_changes.items():
-            new_scores[key] = value
-        batch = ""
-        msg_obj = getattr(event, "message_obj", None)
-        if msg_obj and getattr(msg_obj, "message_id", None):
-            batch = str(msg_obj.message_id)
-        updated = await self.store.upsert_person(
-            name,
-            new_scores,
-            desc=person.get("desc", ""),
-            reasons=person.get("reasons", {}),
-            age=person.get("age"),
-            keep_age=True,
-            batch=batch or None,
-            source="ai",
-        )
-        lines = [f"⚡ 已更新「{name}」的能力评分"]
-        for key, value in valid_changes.items():
-            old_v = person["scores"].get(key, 0)
-            lines.append(f"· {key_to_label.get(key, key)}   {old_v} → {value}")
-        if reason:
-            bolded = reason
-            for key, value in valid_changes.items():
-                label = key_to_label.get(key, key)
-                bolded = bolded.replace(label, f"**{label}**")
-                bolded = bolded.replace(str(int(value)), f"**{int(value)}**")
+            person = await self.store.get_person(name)
+            if not person:
+                continue
+            valid_changes: Dict[str, float] = {}
+            clamped = False
+            for key, value in changes.items():
+                if key not in DIMENSION_LABELS:
+                    continue
+                try:
+                    value = float(value)
+                except (TypeError, ValueError):
+                    continue
+                if not (0 <= value <= 100):
+                    continue
+                old_v = float(person["scores"].get(key, 0))
+                if abs(value - old_v) < 1e-9:
+                    continue
+                if delta_max > 0:
+                    lo, hi = old_v - delta_max, old_v + delta_max
+                    if value < lo or value > hi:
+                        value = max(0.0, min(100.0, lo if value < old_v else hi))
+                        clamped = True
+                valid_changes[key] = value
+            if not valid_changes:
+                continue
+            new_scores = dict(person["scores"])
+            new_scores.update(valid_changes)
+            batch = ""
+            msg_obj = getattr(event, "message_obj", None)
+            if msg_obj and getattr(msg_obj, "message_id", None):
+                batch = str(msg_obj.message_id)
+            history_meta: Dict[str, str] = {}
+            if reason:
+                history_meta["reason"] = reason
+            if evidence:
+                history_meta["evidence"] = evidence
+            await self.store.upsert_person(
+                name,
+                new_scores,
+                desc=person.get("desc", ""),
+                reasons=person.get("reasons", {}),
+                age=person.get("age"),
+                keep_age=True,
+                batch=batch or None,
+                source="ai",
+                history_meta=history_meta or None,
+            )
+            applied.append(
+                {
+                    "name": name,
+                    "changes": valid_changes,
+                    "old": person["scores"],
+                    "reason": reason,
+                    "evidence": evidence,
+                    "clamped": clamped,
+                }
+            )
+        if applied:
+            await self._send_review_notice(event, applied)
+
+    async def _send_review_notice(
+        self, event: AstrMessageEvent, applied: List[Dict[str, Any]]
+    ) -> None:
+        lines: List[str] = []
+        for a in applied:
+            name = a["name"]
+            lines.append(f"⚡ 已更新「{name}」的能力评分")
+            for key, value in a["changes"].items():
+                old_v = a["old"].get(key, 0)
+                suffix = "（受单次上限限制）" if a["clamped"] else ""
+                lines.append(f"· {DIMENSION_LABELS.get(key, key)}   {old_v} → {value}{suffix}")
+            if a["reason"]:
+                bolded = a["reason"]
+                for key, value in a["changes"].items():
+                    label = DIMENSION_LABELS.get(key, key)
+                    bolded = bolded.replace(label, f"**{label}**")
+                    bolded = bolded.replace(str(int(value)), f"**{int(value)}**")
+                lines.append(f"理由：{bolded}")
+            if a["evidence"]:
+                lines.append(f"证据：「{a['evidence']}」")
             lines.append("")
-            lines.append(f"理由：{bolded}")
-        await event.send(event.plain_result("\n".join(lines)))
+        if lines:
+            await event.send(event.plain_result("\n".join(lines).rstrip()))
 
     @staticmethod
-    def _parse_review_json(text: str) -> Dict[str, Any]:
+    def _parse_review_json(text: str) -> List[Dict[str, Any]]:
+        """解析评审输出。支持新格式 {"updates": [...]} 与旧格式 {"name","changes","reason"}。"""
+        data = None
         try:
             data = json.loads(text)
         except Exception:  # noqa: BLE001
             match = re.search(r"\{.*\}", text, re.DOTALL)
-            if not match:
-                return {}
-            try:
-                data = json.loads(match.group(0))
-            except Exception:  # noqa: BLE001
-                return {}
-        if isinstance(data, dict) and (data.get("changes") or data.get("name")):
-            return data
-        return {}
+            if match:
+                try:
+                    data = json.loads(match.group(0))
+                except Exception:  # noqa: BLE001
+                    return []
+        if not isinstance(data, dict):
+            return []
+        updates = data.get("updates")
+        if isinstance(updates, list):
+            return [u for u in updates if isinstance(u, dict)]
+        if isinstance(data.get("changes"), dict):
+            return [data]
+        return []
 
     # ---------- 聊天指令（只读） ----------
 
